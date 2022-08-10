@@ -17,7 +17,7 @@ import pandas as pd
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
-import os
+#import os
 # config variables
 crawl = True
 use_sitemap = True
@@ -324,7 +324,9 @@ def main():
 
 # finish saves the crawl data into a csv file
 def finish():
-    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
+    with open('config.json') as f:
+        config=json.loads(f.read())
+    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited if config['columns'][page]])
     date = datetime.today().strftime("%m-%d-%y")
     df.to_csv(f"byuipages {date}.csv")
 
@@ -339,6 +341,7 @@ def sighandle(sig, frame):
 # this is mostly just good practice, but this runs the main function only if we are in the main thread
 if __name__ == "__main__":
     # this sets up the sighandle function so that it will capture exit signals
-    os.system('config.pyw')
+    #os.system('config.pyw')
+    import config
     signal.signal(signal.SIGINT, sighandle)
     main()
