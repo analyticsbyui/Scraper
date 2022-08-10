@@ -17,7 +17,7 @@ import pandas as pd
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
-
+import os
 # config variables
 crawl = True
 use_sitemap = True
@@ -339,5 +339,6 @@ def sighandle(sig, frame):
 # this is mostly just good practice, but this runs the main function only if we are in the main thread
 if __name__ == "__main__":
     # this sets up the sighandle function so that it will capture exit signals
+    os.system('config.pyw')
     signal.signal(signal.SIGINT, sighandle)
     main()
