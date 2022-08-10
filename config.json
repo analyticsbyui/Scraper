@@ -1,1 +1,1 @@
-{"crawl": 1, "sitemap": 1, "terms": "I am tired", "columns": {"url": 1, "aliases": 1, "errorCode": 1, "tracking_ids": 1, "loadTime": 1, "dateCrawled": 1, "cookies": 1, "links": 1, "terms": 1}, "max": 10000}
+{"crawl": 1, "sitemap": 1, "terms": "", "columns": {"url": 1, "aliases": 0, "errorCode": 1, "tracking_ids": 0, "loadTime": 1, "dateCrawled": 0, "cookies": 0, "links": 1, "terms": 0}, "max": 3}

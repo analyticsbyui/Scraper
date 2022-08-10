@@ -90,7 +90,8 @@ class Page:
         self.haslinks.append(link)
 
     def as_dict(self):
-        return {
+        r_dict={}
+        c_dict={
             "url": self.normalized_url,
             "aliases": self.aliases,
             "errorCode": self.errorCode,
@@ -100,6 +101,16 @@ class Page:
             "cookies": self.cookies,
             "links": self.haslinks
         }
+        global config
+        for column in config['columns']:
+            try:
+                if config['columns'][column]:
+                    r_dict.update([[column,c_dict[column]]])
+            except KeyError:
+                pass
+            except Exception as e:
+                pass
+        return r_dict
 
     def __str__(self):
         return str(self.as_dict())
@@ -326,7 +337,7 @@ def main():
 def finish():
     with open('config.json') as f:
         config=json.loads(f.read())
-    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited if config['columns'][page]])
+    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited] )
     date = datetime.today().strftime("%m-%d-%y")
     df.to_csv(f"byuipages {date}.csv")
 
@@ -337,11 +348,14 @@ def finish():
 # run the finish function if the program is closed early for some reason
 def sighandle(sig, frame):
     finish()
-
+config=None
 # this is mostly just good practice, but this runs the main function only if we are in the main thread
 if __name__ == "__main__":
     # this sets up the sighandle function so that it will capture exit signals
     #os.system('config.pyw')
     import config
+    with open('config.json') as f:
+        config=json.loads(f.read())
+    max_pages=config['max']
     signal.signal(signal.SIGINT, sighandle)
     main()
