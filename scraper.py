@@ -17,11 +17,26 @@ import pandas as pd
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
+import re
 #import os
 # config variables
 crawl = True
 use_sitemap = True
 max_pages = 10
+'''
+aliases = True #The scraper will not be efficient without comparing aliases. Aliases modes maybe?
+errorCode = True #Very few cases almost not used.
+tracking_ids = True # this can save some time.
+loadTime = True # Could not sev too much time.
+dateCrawled = True
+cookies =True
+links = True #Almost same as Crawled
+terms = True
+'''
+
+
+
+
 
 # add_identifier_to_url adds an identifier to the url for potential tracking purposes
 def add_identifier_to_url(url):
@@ -70,6 +85,7 @@ class Page:
         self.dateCrawled = datetime.now()
         self.cookies = []
         self.haslinks = []
+        self.terms = 0
 
     def get_aliases(self):
         return self.aliases
@@ -99,13 +115,17 @@ class Page:
             "loadTime": self.loadTime,
             "dateCrawled": self.dateCrawled,
             "cookies": self.cookies,
-            "links": self.haslinks
+            "links": self.haslinks,
+            "terms": self.terms
         }
         global config
         for column in config['columns']:
             try:
                 if config['columns'][column]:
-                    r_dict.update([[column,c_dict[column]]])
+                    if column !='terms':
+                        r_dict.update([[column,c_dict[column]]])
+                    else:
+                        r_dict.update([[config['terms'],c_dict[column]]])
             except KeyError:
                 pass
             except Exception as e:
@@ -121,6 +141,7 @@ def page_loaded(driver):
 
 # test_url runs the main logic for crawling a webpage
 def test_url(url):
+    global config
     print(url)
 
     page_url_with_identifier = add_identifier_to_url(url)
@@ -213,47 +234,44 @@ def test_url(url):
 
     page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
 
-    logs = driver.get_log("performance")
-    events = process_browser_logs_for_network_events(logs)
+    if(config['columns']['tracking_ids']):
 
-    # find analytics collect calls
-    for event in events:
-        if event['method'] == 'Network.requestWillBeSent':
-            url = event['params']['request']['url']
-            docUrl = event['params']['documentURL']
-            parsed_url = urlparse(url)
-            query_params = parse_qs(parsed_url.query)
+        logs = driver.get_log("performance")
+        events = process_browser_logs_for_network_events(logs)
 
-            # if the url the request was made for doesn't match the page we're scanning, skip it
-            if docUrl != driver.current_url:
-                continue
+        # find analytics collect calls
+        for event in events:
+            if event['method'] == 'Network.requestWillBeSent':
+                url = event['params']['request']['url']
+                docUrl = event['params']['documentURL']
+                parsed_url = urlparse(url)
+                query_params = parse_qs(parsed_url.query)
 
-            if "google-analytics.com/collect" in url or "google-analytics.com/j/collect" in url:
-                page.add_tracking_id(query_params['tid'][0], "GA")
+                # if the url the request was made for doesn't match the page we're scanning, skip it
+                if docUrl != driver.current_url:
+                    continue
 
-            if "googletagmanager.com/gtm.js" in url:
-                page.add_tracking_id(query_params['id'][0], "GTM")
+                if "google-analytics.com/collect" in url or "google-analytics.com/j/collect" in url:
+                    page.add_tracking_id(query_params['tid'][0], "GA")
 
-            if "googletagmanager.com/gtag/js" in url:
-                page.add_tracking_id(query_params['id'][0], "GTAG")
+                if "googletagmanager.com/gtm.js" in url:
+                    page.add_tracking_id(query_params['id'][0], "GTM")
+
+                if "googletagmanager.com/gtag/js" in url:
+                    page.add_tracking_id(query_params['id'][0], "GTAG")
 
     # this load time isn't used for anything, i just threw it in at some point.
     # it's worth double checking at some point
     # this SO answer gives a good overview of what checkpoints are logged in the page loading https://stackoverflow.com/a/14878493
-    page.loadTime = driver.execute_script(
+    if(config['columns']['terms']):
+        body=driver.execute_script('return document.body.innerText')
+        page.terms=(config['terms'] in body)+0
+    if(config['columns']['loadTime']):
+        page.loadTime = driver.execute_script(
         "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
 
-# main sets up selenium, checks the sitemap for the initial list of pages, and runs the crawl
-def main():
-    # don't let the computer sleep while the script runs. if the computer sleeps, the crawl breaks
-    set_keepawake(keep_screen_awake=False)
+def start_driver():
     global driver
-    global urls_to_visit
-    global pages_visited
-
-    urls_to_visit = []
-    pages_visited = []
-
     # this block sets up selenium settings
     ################################################################################
     chrome_options = Options()
@@ -291,6 +309,9 @@ def main():
                               desired_capabilities=capabilities)
     ################################################################################
 
+def get_pages():
+    global urls_to_visit
+    global use_sitemap
     # get initial page list from the sitemap
     # we use a normal requests.get call here instead of accessing it through selenium
     if use_sitemap:
@@ -317,6 +338,21 @@ def main():
     #       page_url = normalize_url(line.strip())
     #       urls_to_visit.append(page_url)
 
+# main sets up selenium, checks the sitemap for the initial list of pages, and runs the crawl
+def main():
+    # don't let the computer sleep while the script runs. if the computer sleeps, the crawl breaks
+    set_keepawake(keep_screen_awake=False)
+    global driver
+    global urls_to_visit
+    global pages_visited
+
+    urls_to_visit = []
+    pages_visited = []
+
+    start_driver()
+
+    get_pages()
+
     # crawl each page in the list
     count = 0
     while len(urls_to_visit) > 0 and count < max_pages:
@@ -337,7 +373,7 @@ def main():
 def finish():
     with open('config.json') as f:
         config=json.loads(f.read())
-    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited] )
+    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
     date = datetime.today().strftime("%m-%d-%y")
     df.to_csv(f"byuipages {date}.csv")
 
@@ -348,7 +384,7 @@ def finish():
 # run the finish function if the program is closed early for some reason
 def sighandle(sig, frame):
     finish()
-config=None
+config=None 
 # this is mostly just good practice, but this runs the main function only if we are in the main thread
 if __name__ == "__main__":
     # this sets up the sighandle function so that it will capture exit signals
@@ -356,6 +392,8 @@ if __name__ == "__main__":
     import config
     with open('config.json') as f:
         config=json.loads(f.read())
-    max_pages=config['max']
+    max_pages = config['max']
+    crawl = config['crawl']
+    use_sitemap = config['sitemap']
     signal.signal(signal.SIGINT, sighandle)
     main()
