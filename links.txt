@@ -1,5 +1,1 @@
-selenium
-requests
-pandas
-webdriver_manager
-wakepy
+http://wikipedia.org

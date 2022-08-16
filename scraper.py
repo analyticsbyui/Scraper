@@ -44,6 +44,38 @@ def add_identifier_to_url(url):
         return url + "&analyticsIntegrationVerificationBot"
     else:
         return url + "?analyticsIntegrationVerificationBot"
+blacklist=None
+def check_blacklist(url):
+    global blacklist
+    global config
+    #print(config['blacklist'])
+    if (blacklist==None):
+        blacklist={'str':[],'re':[]}
+        with open(config['blacklist']) as file:
+            #print('m')
+            for line in file:
+                #print('a',line)
+                line=line.replace('\n','')
+                line=line.replace('\r','')
+                if line[0]=='/':
+                    if line[-1]=='/':
+                        #blacklist['re'].append(re.compile(line))
+                        #print('compile')
+                        blacklist['re'].append(line[1:-1])
+                    else:
+                        #Warning for know just added it
+                        blacklist['str'].append(line)
+                else:
+                    blacklist['str'].append(line)
+        print(blacklist)
+    for q in blacklist['str']:
+        if q in url:
+            return False
+    for q in blacklist['re']:
+        if re.search(q,url)!=None:
+            #print(url)
+            return False
+    return True
 
 # normalize_url removes query string and hash and it makes sure we're using https
 def normalize_url(url):
@@ -224,7 +256,7 @@ def test_url(url):
             page.add_link(url)
 
             # check if the url contains scope domain and that it isn't already queued to be visited
-            if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url) == None:
+            if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url) ):
                 # check file extensions
                 if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                     urls_to_visit.append(normalized_url)
@@ -312,6 +344,7 @@ def start_driver():
 def get_pages():
     global urls_to_visit
     global use_sitemap
+    global config
     # get initial page list from the sitemap
     # we use a normal requests.get call here instead of accessing it through selenium
     if use_sitemap:
@@ -327,16 +360,15 @@ def get_pages():
                         if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
                             page_url = normalize_url(url.text)
 
-                            if "byui.edu" in page_url:
+                            if "byui.edu" in page_url  and (not config['use_blacklist'] or check_blacklist(page_url) ):
                                 page.add_link(page_url)
                                 urls_to_visit.append(page_url)
-
-    # this commented out code below will load in URLs from a txt file
-
-    #with open("brightspotpages.txt", "r") as file:
-    #   for line in file:
-    #       page_url = normalize_url(line.strip())
-    #       urls_to_visit.append(page_url)
+    if(config['use_links']):
+        # this code below will load in URLs from a txt file
+        with open(config['links'], "r") as file:
+           for line in file:
+               page_url = normalize_url(line.strip())
+               urls_to_visit.append(page_url)
 
 # main sets up selenium, checks the sitemap for the initial list of pages, and runs the crawl
 def main():

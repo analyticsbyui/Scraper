@@ -1,5 +1,2 @@
-selenium
-requests
-pandas
-webdriver_manager
-wakepy
+photo
+/\.byui\.edu\/services/
