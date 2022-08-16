@@ -90,6 +90,28 @@ class ConfigScraper:
 
         line+=1
 
+        subentryframe = ttk.Frame(mainframe)
+        subentryframe.grid(column=1, row=line, sticky=(N, W, E, S))
+        
+        self.blacklisted = IntVar()
+        blacklisted=self.blacklisted
+        blacklisted.set(1)
+        self.blacklisted_check = ttk.Checkbutton(subentryframe, text='Output: ', variable=blacklisted, command=self.change_blacklisted_file_state)
+        self.blacklisted_check.grid(column=0,row=line,sticky=W)
+        blacklisted.set(0)
+
+        self.blacklisted_file = StringVar()
+        self.blacklisted_file_entry = ttk.Entry(subentryframe,  textvariable=self.blacklisted_file, state='disabled')
+        self.blacklisted_file_entry['state']='disabled'
+        self.blacklisted_file_entry.grid(sticky=(W, E),column=1,row=line)
+
+        self.button_blacklisted = ttk.Button(mainframe, text='File', command=self.open_file_blacklisted)
+        self.button_blacklisted.grid(sticky=(W, E),column=2,row=line)
+        self.button_blacklisted.state(['disabled'])
+        self.blacklisted_check.state(['disabled'])
+
+        line+=1
+
         ttk.Label(mainframe, text="Max pages: ").grid(column=0, row=line,sticky=W)
 
         
@@ -179,12 +201,25 @@ class ConfigScraper:
         self.alternate_entry(self.blacklist_file_entry)
         if self.button_blacklist.instate(['disabled']):
             self.button_blacklist.state(['!disabled'])
+            self.blacklisted_check.state(['!disabled'])
         else:
-            self.button.state(['disabled'])
+            self.button_blacklist.state(['disabled'])
+            self.button_blacklisted.state(['disabled'])
+            self.blacklisted_check.state(['disabled'])
+            self.blacklisted_file_entry.state(['disabled'])
+            self.blacklisted.set(0)
+    def change_blacklisted_file_state(self):
+        self.alternate_entry(self.blacklisted_file_entry)
+        if self.button_blacklisted.instate(['disabled']):
+            self.button_blacklisted.state(['!disabled'])
+        else:
+            self.button_blacklisted.state(['disabled'])
     def open_file(self):
         self.link_file.set(filedialog.askopenfilename())
     def open_file_blacklist(self):
         self.blacklist_file.set(filedialog.askopenfilename())
+    def open_file_blacklisted(self):
+        self.blacklisted_file.set(filedialog.asksaveasfile().name)
     def alternate_entry(self,entry,state=None):
         if state==None:
             #print(entry['state'])
@@ -229,6 +264,8 @@ class ConfigScraper:
                 'use_links':self.link.get(),
                 'blacklist':self.blacklist_file.get(),
                 'use_blacklist':self.blacklist.get(),
+                'blacklist_output':self.blacklisted_file.get(),
+                'use_blacklist_output':self.blacklisted.get(),
                 'links':self.link_file.get(),
                 'max':int(self.max.get()),
                 }

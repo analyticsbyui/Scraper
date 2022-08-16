@@ -70,10 +70,15 @@ def check_blacklist(url):
         print(blacklist)
     for q in blacklist['str']:
         if q in url:
+            if(config['use_blacklist_output']):
+                with open(config['blacklist_output'],'a') as f:
+                    print(url,file=f)
             return False
     for q in blacklist['re']:
         if re.search(q,url)!=None:
-            #print(url)
+            if(config['use_blacklist_output']):
+                with open(config['blacklist_output'],'a') as f:
+                    print(url,file=f)
             return False
     return True
 
