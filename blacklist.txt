@@ -1,0 +1,5 @@
+selenium
+requests
+pandas
+webdriver_manager
+wakepy

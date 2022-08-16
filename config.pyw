@@ -1,4 +1,5 @@
 from tkinter import *
+import tkinter.filedialog as filedialog
 from tkinter import ttk
 import re
 import json
@@ -8,7 +9,6 @@ class ConfigScraper:
     def __getitem__(self, key):
         return getattr(self, key)
     def __init__(self, root):
-
         self.root=root
         root.title("Scraper Configuration")
 
@@ -29,6 +29,7 @@ class ConfigScraper:
         mainframe.columnconfigure(0, weight=1)
         mainframe.rowconfigure(0, weight=1)
         mainframe.columnconfigure(1, weight=1)
+        mainframe.columnconfigure(2, weight=1)
         mainframe.rowconfigure(1, weight=1)
         mainframe.rowconfigure(2, weight=1)
         mainframe.rowconfigure(3, weight=1)
@@ -50,6 +51,42 @@ class ConfigScraper:
         sitemap_check = ttk.Checkbutton(mainframe, text='Sitemap', variable=sitemap)
         sitemap_check.grid(row=line,sticky=W)
         sitemap.set(1)
+
+        line+=1
+
+        self.link = IntVar()
+        link=self.link
+        link.set(1)
+        link_check = ttk.Checkbutton(mainframe, text='Links:', variable=link, command=self.change_link_file_state)
+        link_check.grid(column=0,row=line,sticky=W)
+        link.set(0)
+
+        self.link_file = StringVar()
+        self.link_file_entry = ttk.Entry(mainframe,  textvariable=self.link_file, state='disabled')
+        self.link_file_entry['state']='disabled'
+        self.link_file_entry.grid(sticky=(W, E),column=1,row=line)
+
+        self.button = ttk.Button(mainframe, text='File', command=self.open_file)
+        self.button.grid(sticky=(W, E),column=2,row=line)
+        self.button.state(['disabled'])
+
+        line+=1
+
+        self.blacklist = IntVar()
+        blacklist=self.blacklist
+        blacklist.set(1)
+        blacklist_check = ttk.Checkbutton(mainframe, text='Blacklists: ', variable=blacklist, command=self.change_blacklist_file_state)
+        blacklist_check.grid(column=0,row=line,sticky=W)
+        blacklist.set(0)
+
+        self.blacklist_file = StringVar()
+        self.blacklist_file_entry = ttk.Entry(mainframe,  textvariable=self.blacklist_file, state='disabled')
+        self.blacklist_file_entry['state']='disabled'
+        self.blacklist_file_entry.grid(sticky=(W, E),column=1,row=line)
+
+        self.button_blacklist = ttk.Button(mainframe, text='File', command=self.open_file_blacklist)
+        self.button_blacklist.grid(sticky=(W, E),column=2,row=line)
+        self.button_blacklist.state(['disabled'])
 
         line+=1
 
@@ -122,7 +159,7 @@ class ConfigScraper:
         self.terms_s.set(0)
         cb=ttk.Checkbutton(mainframe, text="Terms: ", variable=self.terms_s, command=self.change_terms_state)
         cb.grid(row=line,column=0,sticky=W)
-        
+
 
         for child in mainframe.winfo_children(): 
             child.grid_configure(padx=5, pady=5)
@@ -132,6 +169,22 @@ class ConfigScraper:
     def change_terms_state(self):
         self.alternate_entry(self.terms_entry)
         self.color_frame_f.configure(style="")
+    def change_link_file_state(self):
+        self.alternate_entry(self.link_file_entry)
+        if self.button.instate(['disabled']):
+            self.button.state(['!disabled'])
+        else:
+            self.button.state(['disabled'])
+    def change_blacklist_file_state(self):
+        self.alternate_entry(self.blacklist_file_entry)
+        if self.button_blacklist.instate(['disabled']):
+            self.button_blacklist.state(['!disabled'])
+        else:
+            self.button.state(['disabled'])
+    def open_file(self):
+        self.link_file.set(filedialog.askopenfilename())
+    def open_file_blacklist(self):
+        self.blacklist_file.set(filedialog.askopenfilename())
     def alternate_entry(self,entry,state=None):
         if state==None:
             #print(entry['state'])
@@ -173,12 +226,18 @@ class ConfigScraper:
                 'sitemap':self.sitemap.get(),
                 'terms':terms,
                 'columns':columns_values,
+                'use_links':self.link.get(),
+                'blacklist':self.blacklist_file.get(),
+                'use_blacklist':self.blacklist.get(),
+                'links':self.link_file.get(),
                 'max':int(self.max.get()),
                 }
             with open('config.json','w') as f:
                 f.write(json.dumps(config))
             self.root.destroy()
 
+
 root = Tk()
-ConfigScraper(root)
+c=ConfigScraper(root)
+root.bind("<Return>", c.save)
 root.mainloop()
