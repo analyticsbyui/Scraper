@@ -123,6 +123,9 @@ def check_blacklist_callback(url):
             print(url,file=f)
 def check_blacklist(url):
     return check_matches_config('blacklist',url,False,callback=check_blacklist_callback)
+whitelist=None
+def check_whitelist(url):
+    return check_matches_config('whitelist',url)
 terms=None
 def check_terms(body):
     return check_matches_config('terms',body.lower())
@@ -315,7 +318,7 @@ def test_url(url):
             page.add_link(url)
 
             # check if the url contains scope domain and that it isn't already queued to be visited
-            if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url) ):
+            if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
                 # check file extensions
                 if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                     urls_to_visit.append(normalized_url)
@@ -422,7 +425,7 @@ def get_pages():
                         if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
                             page_url = normalize_url(url.text)
 
-                            if "byui.edu" in page_url  and (not config['use_blacklist'] or check_blacklist(page_url) ):
+                            if "byui.edu" in page_url  and (not config['use_blacklist'] or check_blacklist(page_url)) and (not config['use_whitelist'] or check_whitelist(page_url) ):
                                 page.add_link(page_url)
                                 urls_to_visit.append(page_url)
     if(config['use_links']):

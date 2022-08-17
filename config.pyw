@@ -121,6 +121,24 @@ class ConfigScraper:
 
         line+=1
 
+        self.whitelist = IntVar()
+        whitelist=self.whitelist
+        whitelist.set(1)
+        whitelist_check = ttk.Checkbutton(mainframe, text='Whitelists: ', variable=whitelist, command=self.change_whitelist_file_state)
+        whitelist_check.grid(column=0,row=line,sticky=W)
+        whitelist.set(0)
+
+        self.whitelist_file = StringVar()
+        self.whitelist_file_entry = ttk.Entry(mainframe,  textvariable=self.whitelist_file, state='disabled')
+        self.whitelist_file_entry['state']='disabled'
+        self.whitelist_file_entry.grid(sticky=(W, E),column=1,row=line)
+
+        self.button_whitelist = ttk.Button(mainframe, text='File', command=self.open_file_whitelist)
+        self.button_whitelist.grid(sticky=(W, E),column=2,row=line)
+        self.button_whitelist.state(['disabled'])
+
+        line+=1
+
         self.terms_dfile=IntVar()
         self.terms_dfile.set(0)
         self.terms_d = ttk.Checkbutton(mainframe, text='Terms file:', variable=self.terms_dfile, command=self.change_terms_file_state)
@@ -235,6 +253,12 @@ class ConfigScraper:
             self.button.state(['!disabled'])
         else:
             self.button.state(['disabled'])
+    def change_whitelist_file_state(self):
+        self.alternate_entry(self.whitelist_file_entry)
+        if self.button_whitelist.instate(['disabled']):
+            self.button_whitelist.state(['!disabled'])
+        else:
+            self.button_whitelist.state(['disabled'])
     def change_blacklist_file_state(self):
         self.alternate_entry(self.blacklist_file_entry)
         if self.button_blacklist.instate(['disabled']):
@@ -265,6 +289,8 @@ class ConfigScraper:
         self.link_file.set(filedialog.askopenfilename())
     def open_file_blacklist(self):
         self.blacklist_file.set(filedialog.askopenfilename())
+    def open_file_whitelist(self):
+        self.whitelist_file.set(filedialog.askopenfilename())
     def open_file_blacklisted(self):
         self.blacklisted_file.set(filedialog.asksaveasfile().name)
     def open_file_terms(self):
@@ -316,6 +342,8 @@ class ConfigScraper:
                 'use_links':self.link.get(),
                 'blacklist':self.blacklist_file.get(),
                 'use_blacklist':self.blacklist.get(),
+                'whitelist':self.whitelist_file.get(),
+                'use_whitelist':self.whitelist.get(),
                 'blacklist_output':self.blacklisted_file.get(),
                 'use_blacklist_output':self.blacklisted.get(),
                 'links':self.link_file.get(),
