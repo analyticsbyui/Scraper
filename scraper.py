@@ -45,7 +45,7 @@ def add_identifier_to_url(url):
     else:
         return url + "?analyticsIntegrationVerificationBot"
 blacklist=None
-def check_blacklist(url):
+def check_blacklist_old(url):
     global blacklist
     global config
     #print(config['blacklist'])
@@ -81,6 +81,44 @@ def check_blacklist(url):
                     print(url,file=f)
             return False
     return True
+
+def check_matches(cases_name,text,not_reversed=True,callback=None):
+    cases=globals()[cases_name]
+    global config
+    if (cases==None):
+        cases={'str':[],'re':[]}
+        with open(config[cases_name]) as file:
+            for line in file:
+                line=line.replace('\n','')
+                line=line.replace('\r','')
+                if line[0]=='/':
+                    if line[-1]=='/':
+                        cases['re'].append(line[1:-1])
+                    else:
+                        cases['str'].append(line)
+                else:
+                    cases['str'].append(line)
+        #print(blacklist)
+    for q in cases['str']:
+        if q in text:
+            if callback!=None:
+                callback(text)
+            return not_reversed
+    for q in cases['re']:
+        if re.search(q,text)!=None:
+            if callback!=None:
+                callback(text)
+            return not_reversed
+    return not not_reversed
+def check_blacklist_callback(url):
+    if(config['use_blacklist_output']):
+        with open(config['blacklist_output'],'a') as f:
+            print(url,file=f)
+def check_blacklist(url):
+    return check_matches('blacklist',url,False,callback=check_blacklist_callback)
+terms=None
+def check_terms(body):
+    return check_matches('terms',body.lower())
 
 # normalize_url removes query string and hash and it makes sure we're using https
 def normalize_url(url):
@@ -162,7 +200,10 @@ class Page:
                     if column !='terms':
                         r_dict.update([[column,c_dict[column]]])
                     else:
-                        r_dict.update([[config['terms'],c_dict[column]]])
+                        if(config['use_terms']):
+                            r_dict.update([['terms',c_dict[column]]])
+                        else:
+                            r_dict.update([[config['term'],c_dict[column]]])
             except KeyError:
                 pass
             except Exception as e:
@@ -300,9 +341,12 @@ def test_url(url):
     # this load time isn't used for anything, i just threw it in at some point.
     # it's worth double checking at some point
     # this SO answer gives a good overview of what checkpoints are logged in the page loading https://stackoverflow.com/a/14878493
-    if(config['columns']['terms']):
+    if(config['columns']['terms'] and not config['use_terms']):
         body=driver.execute_script('return document.body.innerText')
-        page.terms=(config['terms'] in body)+0
+        page.terms=(config['term'] in body)+0
+    elif config['use_terms']:
+        body=driver.execute_script('return document.body.innerText')
+        page.terms=(check_terms(body))+0
     if(config['columns']['loadTime']):
         page.loadTime = driver.execute_script(
         "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
@@ -398,7 +442,7 @@ def main():
         try:
             test_url(url)
         except (Exception) as e:
-            print(e)
+            print('Error: ',e)
 #            test_url(url)
 
         print("Sites left: " + str(len(urls_to_visit)),

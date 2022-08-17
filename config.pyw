@@ -112,6 +112,23 @@ class ConfigScraper:
 
         line+=1
 
+        self.terms_dfile=IntVar()
+        self.terms_dfile.set(0)
+        self.terms_d = ttk.Checkbutton(mainframe, text='Terms file:', variable=self.terms_dfile, command=self.change_terms_file_state)
+        self.terms_d.grid(column=0,row=line,sticky=W)
+        self.terms_d['state']='disabled'
+
+        self.terms_file = StringVar()
+        self.terms_file_entry = ttk.Entry(mainframe,  textvariable=self.terms_file, state='disabled')
+        self.terms_file_entry['state']='disabled'
+        self.terms_file_entry.grid(sticky=(W, E),column=1,row=line)
+
+        self.button_terms = ttk.Button(mainframe, text='File', command=self.open_file_terms)
+        self.button_terms.grid(sticky=(W, E),column=2,row=line)
+        self.button_terms.state(['disabled'])
+
+        line+=1
+
         ttk.Label(mainframe, text="Max pages: ").grid(column=0, row=line,sticky=W)
 
         
@@ -179,8 +196,10 @@ class ConfigScraper:
 
         self.terms_s=IntVar()
         self.terms_s.set(0)
-        cb=ttk.Checkbutton(mainframe, text="Terms: ", variable=self.terms_s, command=self.change_terms_state)
-        cb.grid(row=line,column=0,sticky=W)
+
+        self.cb=ttk.Checkbutton(mainframe, text="Terms: ", variable=self.terms_s, command=self.change_terms_state)
+        self.cb.grid(row=line,column=0,sticky=W)
+        self.cb.state(['!disabled'])
 
 
         for child in mainframe.winfo_children(): 
@@ -189,8 +208,18 @@ class ConfigScraper:
         #feet_entry.focus()
         root.bind("<Return>", self.save)
     def change_terms_state(self):
-        self.alternate_entry(self.terms_entry)
-        self.color_frame_f.configure(style="")
+        if(self.cb.instate(['selected'])):
+            self.terms_entry.state(['!disabled'])
+            self.terms_d.state(['!disabled'])
+        else:
+            self.terms_entry.state(['disabled'])
+            self.color_frame_f.configure(style="")
+            self.terms_d.state(['disabled'])
+            self.terms_file_entry.state(['disabled'])
+            self.button_terms.state(['disabled'])
+            self.terms_dfile.set(0)
+            
+        
     def change_link_file_state(self):
         self.alternate_entry(self.link_file_entry)
         if self.button.instate(['disabled']):
@@ -214,12 +243,23 @@ class ConfigScraper:
             self.button_blacklisted.state(['!disabled'])
         else:
             self.button_blacklisted.state(['disabled'])
+    def change_terms_file_state(self):
+        if(not self.terms_d.instate(['selected'])):
+            self.terms_file_entry.state(['disabled'])
+            self.button_terms.state(['disabled'])
+            self.terms_entry.state(['!disabled'])
+        else:
+            self.terms_file_entry.state(['!disabled'])
+            self.button_terms.state(['!disabled'])
+            self.terms_entry.state(['disabled'])
     def open_file(self):
         self.link_file.set(filedialog.askopenfilename())
     def open_file_blacklist(self):
         self.blacklist_file.set(filedialog.askopenfilename())
     def open_file_blacklisted(self):
         self.blacklisted_file.set(filedialog.asksaveasfile().name)
+    def open_file_terms(self):
+        self.terms_file.set(filedialog.askopenfilename())
     def alternate_entry(self,entry,state=None):
         if state==None:
             #print(entry['state'])
@@ -255,11 +295,13 @@ class ConfigScraper:
             terms=self.terms.get() if len(es)==0 else ""
             columns_values={}
             columns_values.update([[column, self[column].get()] for column in self.columns])
-            columns_values.update([['terms',1 if len(es)==0 else 0]])
+            columns_values.update([['terms',self.terms_s.get()]])
             config={
                 'crawl':self.crawl.get(),
                 'sitemap':self.sitemap.get(),
-                'terms':terms,
+                'term':terms,
+                'use_terms':self.blacklist.get(),
+                'terms':self.terms_file.get(),
                 'columns':columns_values,
                 'use_links':self.link.get(),
                 'blacklist':self.blacklist_file.get(),
