@@ -82,22 +82,22 @@ def check_blacklist_old(url):
             return False
     return True
 
-def check_matches(cases_name,text,not_reversed=True,callback=None):
-    cases=globals()[cases_name]
-    global config
-    if (cases==None):
-        cases={'str':[],'re':[]}
-        with open(config[cases_name]) as file:
-            for line in file:
-                line=line.replace('\n','')
-                line=line.replace('\r','')
-                if line[0]=='/':
-                    if line[-1]=='/':
-                        cases['re'].append(line[1:-1])
-                    else:
-                        cases['str'].append(line)
+def init_matches(path):
+    cases={'str':[],'re':[]}
+    with open(path) as file:
+        for line in file:
+            line=line.replace('\n','')
+            line=line.replace('\r','')
+            if line[0]=='/':
+                if line[-1]=='/':
+                    cases['re'].append(line[1:-1])
                 else:
                     cases['str'].append(line)
+            else:
+                cases['str'].append(line)
+    return cases    
+
+def check_matches(cases,text,not_reversed=True,callback=None):
         #print(blacklist)
     for q in cases['str']:
         if q in text:
@@ -110,26 +110,39 @@ def check_matches(cases_name,text,not_reversed=True,callback=None):
                 callback(text)
             return not_reversed
     return not not_reversed
+
+def check_matches_config(cases_name,text,not_reversed=True,callback=None):
+    cases=globals()[cases_name]
+    global config
+    if (cases==None):
+        cases=init_matches(config[cases_name])
+    return check_matches(cases,text,not_reversed,callback)
 def check_blacklist_callback(url):
     if(config['use_blacklist_output']):
         with open(config['blacklist_output'],'a') as f:
             print(url,file=f)
 def check_blacklist(url):
-    return check_matches('blacklist',url,False,callback=check_blacklist_callback)
+    return check_matches_config('blacklist',url,False,callback=check_blacklist_callback)
 terms=None
 def check_terms(body):
-    return check_matches('terms',body.lower())
-
+    return check_matches_config('terms',body.lower())
+normalize_excuses=init_matches('normalize_exceptions.txt')
+def check_normalize(url):
+    global normalize_excuses
+    return check_matches(normalize_excuses,url)
 # normalize_url removes query string and hash and it makes sure we're using https
 def normalize_url(url):
-    url = url.split("?")[0]
-    url = url.split("#")[0]
-    url = url.split("://")[1]
+    if(check_normalize(url)):
+        return url
+    else:
+        url = url.split("?")[0]
+        url = url.split("#")[0]
+        url = url.split("://")[1]
 
-    if url[-1] == '/':
-        url = url[:-1]
+        if url[-1] == '/':
+            url = url[:-1]
 
-    return "https://" + url.lower()
+        return "https://" + url.lower()
 
 # gets a page object from the pages_visited list
 def get_page_visited(url):
@@ -418,6 +431,12 @@ def get_pages():
            for line in file:
                page_url = normalize_url(line.strip())
                urls_to_visit.append(page_url)
+    if(config['catalog']):
+        catalog_id=requests.get('https://byui.kuali.co/api/v1/catalog/public/catalogs/current').json()['_id']
+        navigation=requests.get(f"https://byui.kuali.co/api/v1/catalog/public/catalogs/{catalog_id}").json()['settings']['catalog']['navigation']
+        urls=[]
+        for page in navigation:
+            urls_to_visit.append('https://www.byui.edu/catalog#'+page['to'])
 
 # main sets up selenium, checks the sitemap for the initial list of pages, and runs the crawl
 def main():

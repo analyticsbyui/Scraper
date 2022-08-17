@@ -54,6 +54,15 @@ class ConfigScraper:
 
         line+=1
 
+        self.catalog = IntVar()
+        catalog=self.catalog
+        catalog.set(1)
+        catalog_check = ttk.Checkbutton(mainframe, text='Catalog', variable=catalog)
+        catalog_check.grid(row=line,sticky=W)
+        catalog.set(0)
+
+        line+=1
+
         self.link = IntVar()
         link=self.link
         link.set(1)
@@ -299,6 +308,7 @@ class ConfigScraper:
             config={
                 'crawl':self.crawl.get(),
                 'sitemap':self.sitemap.get(),
+                'catalog':self.catalog.get(),
                 'term':terms,
                 'use_terms':self.blacklist.get(),
                 'terms':self.terms_file.get(),
