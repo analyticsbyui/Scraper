@@ -309,9 +309,9 @@ def test_url(url):
 
     # crawl the page for links
     # because the page load is set to eager, we need to wait until everything else is loaded before checking network requests and cookies
-    driver.execute_script("lastTime=(new Date()).getTime() ; const config = { attributes: true, childList: true, subtree: true };const targetNode = document.body;const callback = (mutationList, observer) => {console.log('change');lastTime=(new Date()).getTime();};const observer = new MutationObserver(callback);observer.observe(targetNode, config);")
+    driver.execute_script("lastTime=(new Date()).getTime() ; const config = { attributes: true, childList: true, subtree: true };const targetNode = document.body;const callback = (mutationList, observer) => {lastTime=(new Date()).getTime();};const observer = new MutationObserver(callback);observer.observe(targetNode, config);")
     WebDriverWait(driver, timeout=10).until(page_loaded)
-    driver.save_screenshot(str(len(pages_visited))+'.png')
+    #driver.save_screenshot(str(len(pages_visited))+'.png')
     
     if crawl:
         #if(config['catalog']):
