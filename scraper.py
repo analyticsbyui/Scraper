@@ -8,6 +8,7 @@ from xml.etree import ElementTree
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.common.exceptions import StaleElementReferenceException
 import json
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
@@ -18,6 +19,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
 import re
+import traceback
 #import os
 # config variables
 crawl = True
@@ -303,28 +305,33 @@ def test_url(url):
         links = driver.find_elements(By.TAG_NAME, "a")
 
         for link in links:
-            url = link.get_attribute("href")
-            if url == None:
-                continue
+            try:
+                url = link.get_attribute("href")
+                if url == None:
+                    continue
 
-            if "://" not in url:
-                continue
+                if "://" not in url:
+                    continue
 
-            if url.strip() == "":
-                continue
+                if url.strip() == "":
+                    continue
 
-            normalized_url = normalize_url(url)
+                normalized_url = normalize_url(url)
 
-            page.add_link(url)
+                page.add_link(url)
 
-            # check if the url contains scope domain and that it isn't already queued to be visited
-            if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
-                # check file extensions
-                if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
-                    urls_to_visit.append(normalized_url)
+                # check if the url contains scope domain and that it isn't already queued to be visited
+                if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
+                    # check file extensions
+                    if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
+                        urls_to_visit.append(normalized_url)
+            except StaleElementReferenceException:
+                pass
 
     # because the page load is set to eager, we need to wait until everything else is loaded before checking network requests and cookies
     WebDriverWait(driver, timeout=10).until(page_loaded)
+    if(config['catalog']):
+        sleep(2)
 
     page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
 
@@ -369,6 +376,7 @@ def test_url(url):
 
 def start_driver():
     global driver
+    global config
     # this block sets up selenium settings
     ################################################################################
     chrome_options = Options()
@@ -395,7 +403,8 @@ def start_driver():
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-gpu")
     # run headless so that the chrome window stays hidden
-    chrome_options.add_argument("--headless")
+    if(not config['catalog']):
+        chrome_options.add_argument("--headless")
 
     # eager loading lets the program continue after the html is loaded, but before everthing else has finished loading
     # we use this so we can crawl the page for links before continuing on to log analytics calls
@@ -465,6 +474,7 @@ def main():
             test_url(url)
         except (Exception) as e:
             print('Error: ',e)
+            traceback.print_exc()
 #            test_url(url)
 
         print("Sites left: " + str(len(urls_to_visit)),

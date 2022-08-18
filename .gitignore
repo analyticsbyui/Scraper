@@ -1,5 +1,6 @@
 /__pycache__
-/config.json
 /.git
 byuipages*
 /output.txt
+*.png
+/olds
