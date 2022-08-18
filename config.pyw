@@ -195,7 +195,8 @@ class ConfigScraper:
             'loadTime':{'disabled':False,'state':False},
             'dateCrawled':{'disabled':False,'state':False},
             'cookies':{'disabled':False,'state':False},
-            'links':{'disabled':False,'state':False}
+            'links':{'disabled':False,'state':False},
+            'title':{'disabled':False,'state':False}
         }
 
         for column in self.columns.keys():

@@ -180,6 +180,7 @@ class Page:
         self.cookies = []
         self.haslinks = []
         self.terms = 0
+        self.title = ''
 
     def get_aliases(self):
         return self.aliases
@@ -210,7 +211,8 @@ class Page:
             "dateCrawled": self.dateCrawled,
             "cookies": self.cookies,
             "links": self.haslinks,
-            "terms": self.terms
+            "terms": self.terms,
+            "title": self.title
         }
         global config
         for column in config['columns']:
@@ -383,6 +385,8 @@ def test_url(url):
     if(config['columns']['loadTime']):
         page.loadTime = driver.execute_script(
         "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
+    if(config['columns']['loadTime']):
+        page.title = driver.title
 
 def start_driver():
     global driver
