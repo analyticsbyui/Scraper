@@ -8,6 +8,7 @@ from xml.etree import ElementTree
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions
 from selenium.common.exceptions import StaleElementReferenceException
 import json
 from urllib.parse import urlparse
@@ -233,7 +234,10 @@ class Page:
 
 # page_loaded checks the ready state of the web page
 def page_loaded(driver):
-    return driver.execute_script("return document.readyState") == "complete" 
+    if(config['catalog']):
+        return driver.execute_script("return document.readyState") == "complete" and driver.execute_script("return ((new Date()).getTime()-lastTime)>2000") #and  expected_conditions.presence_of_element_located((By.ID,'__KUALI_TLP'))
+    else:
+        return driver.execute_script("return document.readyState") == "complete" 
 
 # test_url runs the main logic for crawling a webpage
 def test_url(url):
@@ -247,6 +251,7 @@ def test_url(url):
         # reset cookies after every page so they're fresh
         driver.delete_all_cookies()
         driver.get(page_url_with_identifier)
+        #driver.refresh()
     except (MaxRetryError, ConnectionResetError) as e:
         finish()
         return
@@ -301,7 +306,14 @@ def test_url(url):
         #return
 
     # crawl the page for links
+    # because the page load is set to eager, we need to wait until everything else is loaded before checking network requests and cookies
+    driver.execute_script("lastTime=(new Date()).getTime() ; const config = { attributes: true, childList: true, subtree: true };const targetNode = document.body;const callback = (mutationList, observer) => {console.log('change');lastTime=(new Date()).getTime();};const observer = new MutationObserver(callback);observer.observe(targetNode, config);")
+    WebDriverWait(driver, timeout=10).until(page_loaded)
+    driver.save_screenshot(str(len(pages_visited))+'.png')
+    
     if crawl:
+        #if(config['catalog']):
+        #    sleep(1)
         links = driver.find_elements(By.TAG_NAME, "a")
 
         for link in links:
@@ -328,10 +340,8 @@ def test_url(url):
             except StaleElementReferenceException:
                 pass
 
-    # because the page load is set to eager, we need to wait until everything else is loaded before checking network requests and cookies
-    WebDriverWait(driver, timeout=10).until(page_loaded)
-    if(config['catalog']):
-        sleep(2)
+    
+    
 
     page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
 
