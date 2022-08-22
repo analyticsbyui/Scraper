@@ -181,6 +181,7 @@ class Page:
         self.haslinks = []
         self.terms = 0
         self.title = ''
+        self.is_file = 0
 
     def get_aliases(self):
         return self.aliases
@@ -212,7 +213,8 @@ class Page:
             "cookies": self.cookies,
             "links": self.haslinks,
             "terms": self.terms,
-            "title": self.title
+            "title": self.title,
+            "is_file": self.is_file
         }
         global config
         for column in config['columns']:
@@ -339,6 +341,9 @@ def test_url(url):
                     # check file extensions
                     if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                         urls_to_visit.append(normalized_url)
+                    elif config['files']:
+                        page=Page("normalized_url")
+                        pages_visited.append(page)
             except StaleElementReferenceException:
                 pass
 
@@ -418,6 +423,7 @@ def start_driver():
     chrome_options.add_argument("--disable-gpu")
     # run headless so that the chrome window stays hidden
     if(not config['catalog']):
+        chrome_options.add_argument("--enable-javascript")
         chrome_options.add_argument("--headless")
 
     # eager loading lets the program continue after the html is loaded, but before everthing else has finished loading
@@ -450,6 +456,7 @@ def get_pages():
 
                             if "byui.edu" in page_url  and (not config['use_blacklist'] or check_blacklist(page_url)) and (not config['use_whitelist'] or check_whitelist(page_url) ):
                                 page.add_link(page_url)
+                                page.is_file=1
                                 urls_to_visit.append(page_url)
     if(config['use_links']):
         # this code below will load in URLs from a txt file

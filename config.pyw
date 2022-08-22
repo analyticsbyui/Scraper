@@ -156,6 +156,15 @@ class ConfigScraper:
 
         line+=1
 
+        self.file = IntVar()
+        file=self.file
+        file.set(1)
+        file_check = ttk.Checkbutton(mainframe, text='Include docs as urls', variable=file, command=self.change_file_check_state)
+        file_check.grid(row=line,sticky=W)
+        file.set(0)
+
+        line+=1
+
         ttk.Label(mainframe, text="Max pages: ").grid(column=0, row=line,sticky=W)
 
         
@@ -196,7 +205,8 @@ class ConfigScraper:
             'dateCrawled':{'disabled':False,'state':False},
             'cookies':{'disabled':False,'state':False},
             'links':{'disabled':False,'state':False},
-            'title':{'disabled':False,'state':False}
+            'title':{'disabled':False,'state':False},
+            'is_file':{'disabled':True,'state':False}
         }
 
         for column in self.columns.keys():
@@ -204,6 +214,7 @@ class ConfigScraper:
             self[column].set(self.columns[column]['state'])
             cb=ttk.Checkbutton(mainframe, text=column, variable=self[column])
             cb.grid(row=line,sticky=W)
+            self[column+'_auto_check']=cb
             if self.columns[column]['disabled']:
                 cb.config(state='disabled')
             line+=1
@@ -286,6 +297,11 @@ class ConfigScraper:
             self.terms_file_entry.state(['!disabled'])
             self.button_terms.state(['!disabled'])
             self.terms_entry.state(['disabled'])
+    def change_file_check_state(self):
+        if(self.file.get()):
+            self.is_file_auto_check.state(['!disabled'])
+        else:
+            self.is_file_auto_check.state(['disabled'])
     def open_file(self):
         self.link_file.set(filedialog.askopenfilename())
     def open_file_blacklist(self):
@@ -349,6 +365,7 @@ class ConfigScraper:
                 'use_blacklist_output':self.blacklisted.get(),
                 'links':self.link_file.get(),
                 'max':int(self.max.get()),
+                'files':self.file.get()
                 }
             with open('config.json','w') as f:
                 f.write(json.dumps(config))
