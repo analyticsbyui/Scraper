@@ -165,11 +165,26 @@ class ConfigScraper:
 
         line+=1
 
-        ttk.Label(mainframe, text="Max pages: ").grid(column=0, row=line,sticky=W)
+        ttk.Label(mainframe, text="Threads: ").grid(column=0, row=line,sticky=W)
 
         
         s = ttk.Style()
         s.configure('Danger.TFrame', background='red')
+        self.color_frame_threads = ttk.Frame(mainframe, padding="1")
+        color_frame_threads=self.color_frame_threads
+        color_frame_threads.grid(column=1, row=line, sticky=(W, E))
+        color_frame_threads.columnconfigure(0, weight=1)
+        color_frame_threads.rowconfigure(0, weight=1)
+        
+        self.threads = StringVar()
+        self.threads_entry = ttk.Entry(color_frame_threads,  textvariable=self.threads)
+        self.threads_entry.grid(sticky=(W, E),column=0,row=0)
+
+        line+=1
+
+        ttk.Label(mainframe, text="Max pages: ").grid(column=0, row=line,sticky=W)
+
+        
         self.color_frame = ttk.Frame(mainframe, padding="1")
         color_frame=self.color_frame
         color_frame.grid(column=1, row=line, sticky=(W, E))
@@ -335,6 +350,12 @@ class ConfigScraper:
         else:
             ready=False
             self.color_frame.configure(style="Danger.TFrame")
+        if re.fullmatch(exp,self.threads.get()):
+            ready=ready and True
+            self.color_frame_threads.configure(style="")
+        else:
+            ready=False
+            self.color_frame_threads.configure(style="Danger.TFrame")
         exp = re.compile(r"[^ ]+.*")
         es=self.terms_entry.state()
         if (len(es)>0 and es[0]=='disabled') or re.fullmatch(exp,self.terms.get()):
@@ -364,7 +385,8 @@ class ConfigScraper:
                 'blacklist_output':self.blacklisted_file.get(),
                 'use_blacklist_output':self.blacklisted.get(),
                 'links':self.link_file.get(),
-                'max':int(self.max.get()),
+                'threads':int(self.max.get()),
+                'max':int(self.threads.get()),
                 'files':self.file.get()
                 }
             with open('config.json','w') as f:

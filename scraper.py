@@ -21,11 +21,12 @@ from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
 import re
 import traceback
+from multiprocessing import Manager,Pool
 #import os
 # config variables
-crawl = True
-use_sitemap = True
-max_pages = 10
+#crawl = True
+#use_sitemap = True
+#max_pages = 10
 '''
 aliases = True #The scraper will not be efficient without comparing aliases. Aliases modes maybe?
 errorCode = True #Very few cases almost not used.
@@ -136,6 +137,14 @@ normalize_excuses=init_matches('normalize_exceptions.txt')
 def check_normalize(url):
     global normalize_excuses
     return check_matches(normalize_excuses,url)
+def init_global_matches():
+    if (config['use_terms']):
+        check_terms('')
+    if (config['use_whitelist']):
+        check_whitelist('')
+    if (config['use_blacklist']):
+        check_blacklist('')
+    
 # normalize_url removes query string and hash and it makes sure we're using https
 def normalize_url(url):
     if(check_normalize(url)):
@@ -151,7 +160,7 @@ def normalize_url(url):
         return "https://" + url.lower()
 
 # gets a page object from the pages_visited list
-def get_page_visited(url):
+def get_page_visited(url,pages_visited):
     url = normalize_url(url)
     return next((page for page in pages_visited if page.get_url() == url or url in page.get_aliases()), None)
 
@@ -237,15 +246,14 @@ class Page:
         return str(self.as_dict())
 
 # page_loaded checks the ready state of the web page
-def page_loaded(driver):
+def page_loaded(driver,config):
     if(config['catalog']):
         return driver.execute_script("return document.readyState") == "complete" and driver.execute_script("return ((new Date()).getTime()-lastTime)>2000") #and  expected_conditions.presence_of_element_located((By.ID,'__KUALI_TLP'))
     else:
         return driver.execute_script("return document.readyState") == "complete" 
 
 # test_url runs the main logic for crawling a webpage
-def test_url(url):
-    global config
+def test_url(url,driver,urls_to_visit,pages_visited,config,all_urls):
     print(url)
 
     page_url_with_identifier = add_identifier_to_url(url)
@@ -276,7 +284,7 @@ def test_url(url):
         if current_url in urls_to_visit:
             urls_to_visit.remove(current_url)
 
-        page_visited = get_page_visited(current_url)
+        page_visited = get_page_visited(current_url,pages_visited)
 
         if page_visited != None:
             page_visited.add_alias(url)
@@ -285,7 +293,7 @@ def test_url(url):
         else:
             page.add_alias(url)
 
-    pages_visited.append(page)
+    #pages_visited.append(page)
 
     # search for chrome error
     try:
@@ -312,14 +320,16 @@ def test_url(url):
     # crawl the page for links
     # because the page load is set to eager, we need to wait until everything else is loaded before checking network requests and cookies
     driver.execute_script("lastTime=(new Date()).getTime() ; const config = { attributes: true, childList: true, subtree: true };const targetNode = document.body;const callback = (mutationList, observer) => {lastTime=(new Date()).getTime();};const observer = new MutationObserver(callback);observer.observe(targetNode, config);")
-    WebDriverWait(driver, timeout=10).until(page_loaded)
+    def page_loaded2(driver):
+        return page_loaded(driver,config)
+    WebDriverWait(driver, timeout=10).until(page_loaded2)
     #driver.save_screenshot(str(len(pages_visited))+'.png')
     
-    if crawl:
+    if config['crawl']:
         #if(config['catalog']):
         #    sleep(1)
         links = driver.find_elements(By.TAG_NAME, "a")
-
+        print(len(links))
         for link in links:
             try:
                 url = link.get_attribute("href")
@@ -337,20 +347,34 @@ def test_url(url):
                 page.add_link(url)
 
                 # check if the url contains scope domain and that it isn't already queued to be visited
-                if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
+                if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and normalized_url not in all_urls and get_page_visited(url,pages_visited)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
                     # check file extensions
                     if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                         urls_to_visit.append(normalized_url)
                     elif config['files']:
-                        page=Page("normalized_url")
-                        pages_visited.append(page)
+                        pages_visited.append(Page(normalized_url))
             except StaleElementReferenceException:
                 pass
 
-    
-    
 
-    page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
+    page.cookies=[cookie['name'] for cookie in driver.get_cookies()]
+    '''
+    print('id ori cookie',id(page.cookies))
+    print('size ori cookie',page.cookies.__sizeof__())
+    temp=[cookie['name'] for cookie in driver.get_cookies()]
+    print('id temp',id(temp))   
+    print(temp)
+    #page.cookies = page.cookies+temp
+    for mknj in temp:
+        page.cookies.append(mknj)
+    print('id last cookie',id(page.cookies))
+    print('size last cookie',page.cookies.__sizeof__())
+    print(page.cookies)
+    
+    
+    for page in pages_visited:
+        print(page.normalized_url, page.cookies, id(page.cookies), page.cookies.__sizeof__())
+    '''
 
     if(config['columns']['tracking_ids']):
 
@@ -392,10 +416,8 @@ def test_url(url):
         "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
     if(config['columns']['loadTime']):
         page.title = driver.title
-
-def start_driver():
-    global driver
-    global config
+    pages_visited.append(page)
+def start_driver(config):
     # this block sets up selenium settings
     ################################################################################
     chrome_options = Options()
@@ -434,14 +456,15 @@ def start_driver():
     driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options,
                               desired_capabilities=capabilities)
     ################################################################################
+    return driver
 
 def get_pages():
     global urls_to_visit
-    global use_sitemap
+    #global use_sitemap
     global config
     # get initial page list from the sitemap
     # we use a normal requests.get call here instead of accessing it through selenium
-    if use_sitemap:
+    if config['sitemap']:
         page = Page("https://www.byui.edu/sitemap")
         pages_visited.append(page)
         resp = requests.get("https://www.byui.edu/sitemap",
@@ -472,46 +495,66 @@ def get_pages():
             urls_to_visit.append('https://www.byui.edu/catalog#'+page['to'])
 
 # main sets up selenium, checks the sitemap for the initial list of pages, and runs the crawl
+drivers=[]
 def main():
     # don't let the computer sleep while the script runs. if the computer sleeps, the crawl breaks
     set_keepawake(keep_screen_awake=False)
-    global driver
     global urls_to_visit
     global pages_visited
+    global config
+    global count
+    global drivers
+    global all_urls
 
-    urls_to_visit = []
-    pages_visited = []
-
-    start_driver()
+    #urls_to_visit = []
+    #pages_visited = []
+        
 
     get_pages()
 
+    with Pool(processes=config['threads']) as pool:
+        pool.starmap(scrap,[[urls_to_visit,pages_visited,config,count,all_urls]]*config['threads'])
+    
+              
+    finish()
+
+def scrap(urls_to_visit,pages_visited,config,count,all_urls):
+    
+    #global drivers
+    driver=start_driver(config)
+    #drivers.append(driver)
     # crawl each page in the list
-    count = 0
-    while len(urls_to_visit) > 0 and count < max_pages:
+    while len(urls_to_visit) > 0 and count.value < config['max']:
         url = urls_to_visit.pop()
-        count += 1
+        while url in all_urls:
+            url=urls_to_visit.pop()
+        all_urls.append(url)
+        count.value += 1
         try:
-            test_url(url)
+            test_url(url,driver,urls_to_visit,pages_visited,config,all_urls)
         except (Exception) as e:
             print('Error: ',e)
             traceback.print_exc()
 #            test_url(url)
 
         print("Sites left: " + str(len(urls_to_visit)),
-              "Visited: " + str(count))
-              
-    finish()
+              "Visited: " + str(count.value))
 
 # finish saves the crawl data into a csv file
 def finish():
+    global drivers
+    global urls_to_visit
+    global pages_visited
+    for page in pages_visited:
+        print(page.normalized_url, page.cookies, id(page.cookies), page.cookies.__sizeof__())
     with open('config.json') as f:
         config=json.loads(f.read())
     df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
     date = datetime.today().strftime("%m-%d-%y")
     df.to_csv(f"byuipages {date}.csv")
-
-    driver.quit()
+    global drivers
+    for d in drivers:
+        d.quit()
     unset_keepawake()
     sys.exit(0)
 
@@ -526,8 +569,17 @@ if __name__ == "__main__":
     import config
     with open('config.json') as f:
         config=json.loads(f.read())
-    max_pages = config['max']
-    crawl = config['crawl']
-    use_sitemap = config['sitemap']
+    #print(config)
+    manager=Manager()
+    urls_to_visit=manager.list()
+    pages_visited=manager.list()
+    all_urls=manager.list()
+    config=manager.dict(config)
+    drivers=manager.list()
+    count=manager.Value('i',0)
+    #max_pages = config['max']
+    #crawl = config['crawl']
+    #use_sitemap = config['sitemap']
+    init_global_matches()
     signal.signal(signal.SIGINT, sighandle)
     main()
