@@ -509,7 +509,7 @@ def main():
     global count
     global drivers
     global all_urls
-    globals()['config']=config
+    
     #urls_to_visit = []
     #pages_visited = []
         
@@ -526,6 +526,7 @@ def scrap(urls_to_visit,pages_visited,config,count,all_urls):
     
     #global drivers
     driver=start_driver(config)
+    globals()['config']=config
     #drivers.append(driver)
     # crawl each page in the list
     while len(urls_to_visit) > 0 and count.value < config['max']:
