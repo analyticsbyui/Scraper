@@ -331,7 +331,7 @@ class ConfigScraper:
         if state==None:
             #print(entry['state'])
             #print(entry.cget("state"))
-            #if(entry["state"]=='disabled'):
+            #if(entry["state"]=='disabled'):terms_dfile
             es=entry.state()
             if(len(es)>0 and es[0]=='disabled'):
                 entry.config(state='enabled')
@@ -374,7 +374,7 @@ class ConfigScraper:
                 'sitemap':self.sitemap.get(),
                 'catalog':self.catalog.get(),
                 'term':terms,
-                'use_terms':self.terms_d.get(),
+                'use_terms':self.terms_dfile.get(),
                 'terms':self.terms_file.get(),
                 'columns':columns_values,
                 'use_links':self.link.get(),
