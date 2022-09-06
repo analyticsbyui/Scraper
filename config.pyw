@@ -374,7 +374,7 @@ class ConfigScraper:
                 'sitemap':self.sitemap.get(),
                 'catalog':self.catalog.get(),
                 'term':terms,
-                'use_terms':self.blacklist.get(),
+                'use_terms':self.terms_d.get(),
                 'terms':self.terms_file.get(),
                 'columns':columns_values,
                 'use_links':self.link.get(),
@@ -385,8 +385,8 @@ class ConfigScraper:
                 'blacklist_output':self.blacklisted_file.get(),
                 'use_blacklist_output':self.blacklisted.get(),
                 'links':self.link_file.get(),
-                'threads':int(self.max.get()),
-                'max':int(self.threads.get()),
+                'threads':int(self.threads.get()),
+                'max':int(self.max.get()),
                 'files':self.file.get()
                 }
             with open('config.json','w') as f:
