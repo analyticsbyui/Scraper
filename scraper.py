@@ -509,7 +509,7 @@ def main():
     global count
     global drivers
     global all_urls
-
+    globals()['config']=config
     #urls_to_visit = []
     #pages_visited = []
         
@@ -565,7 +565,7 @@ def finish():
 # run the finish function if the program is closed early for some reason
 def sighandle(sig, frame):
     finish()
-config=None 
+ 
 # this is mostly just good practice, but this runs the main function only if we are in the main thread
 if __name__ == "__main__":
     # this sets up the sighandle function so that it will capture exit signals
