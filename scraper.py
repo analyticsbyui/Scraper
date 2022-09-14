@@ -337,7 +337,7 @@ def test_url(url):
                 page.add_link(url)
 
                 # check if the url contains scope domain and that it isn't already queued to be visited
-                if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
+                if normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
                     # check file extensions
                     if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                         urls_to_visit.append(normalized_url)
@@ -420,6 +420,7 @@ def start_driver():
 
     # Turn off gpu and extensions, these can cause weird problems
     chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--ignore-certificate-errors")
     chrome_options.add_argument("--disable-gpu")
     # run headless so that the chrome window stays hidden
     if(not config['catalog']):
