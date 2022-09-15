@@ -427,8 +427,9 @@ def start_driver():
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-gpu")
     # run headless so that the chrome window stays hidden
+    chrome_options.add_argument("--enable-javascript")
     if(not config['catalog']):
-        chrome_options.add_argument("--enable-javascript")
+        
         chrome_options.add_argument("--headless")
 
     # eager loading lets the program continue after the html is loaded, but before everthing else has finished loading
