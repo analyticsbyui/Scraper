@@ -353,7 +353,7 @@ class ConfigScraper:
                 'sitemap':self.sitemap.get(),
                 'catalog':self.catalog.get(),
                 'term':terms,
-                'use_terms':self.blacklist.get(),
+                'use_terms':self.terms_dfile.get(),
                 'terms':self.terms_file.get(),
                 'columns':columns_values,
                 'use_links':self.link.get(),
