@@ -40,6 +40,8 @@ terms = True
 
 
 
+scan_id=datetime.now().strftime('%d%m%Y')
+pindex=1
 
 # add_identifier_to_url adds an identifier to the url for potential tracking purposes
 def add_identifier_to_url(url):
@@ -202,6 +204,7 @@ class Page:
         self.haslinks.append(link)
 
     def as_dict(self):
+        global pindex
         r_dict={}
         c_dict={
             "url": self.normalized_url,
@@ -231,6 +234,8 @@ class Page:
                 pass
             except Exception as e:
                 pass
+        r_dict['scan_id']=scan_id+str(pindex)
+        pindex+=1
         return r_dict
 
     def __str__(self):
