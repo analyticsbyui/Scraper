@@ -244,6 +244,52 @@ class ConfigScraper:
         for child in mainframe.winfo_children(): 
             child.grid_configure(padx=5, pady=5)
 
+
+        try:
+            with open('config.json') as f:
+                config=json.loads(f.read())
+
+                
+                self.sitemap.set(config['sitemap'])
+                self.catalog.set(config['catalog'])
+                if(config['terms'] or config['use_terms']):
+                    self.terms.set(config['term'])
+                    self.change_terms_state()
+                self.terms_dfile.set(config['use_terms'])
+                if(config['use_terms']):
+                    self.change_terms_file_state()
+                self.terms_file.set(config['terms'])
+                if(config['use_links']):
+                    self.change_link_file_state()
+                self.link.set(config['use_links'])
+                self.blacklist_file.set(config['blacklist'])
+                self.blacklist.set(config['use_blacklist'])
+                if(config['use_blacklist']):
+                    self.change_blacklist_file_state()
+                self.whitelist_file.set(config['whitelist'])
+                self.whitelist.set(config['use_whitelist'])
+                if(config['use_whitelist']):
+                    self.change_whitelist_file_state()
+                self.blacklisted_file.set(config['blacklist_output'])
+                self.blacklisted.set(config['use_blacklist_output'])
+                if(config['use_blacklist_output']):
+                    self.change_blacklisted_file_state()
+                self.link_file.set(config['links'])
+                self.max.set(config['max'])
+                self.file.set(config['files'])
+                if(config['files']):
+                    self.change_file_check_state()
+
+                for column in self.columns.keys():
+                    self[column]
+                    self[column].set(config['columns'][column])
+                
+                #'columns':columns_values,
+                
+        except FileNotFoundError as e:
+            pass   
+
+        
         #feet_entry.focus()
         root.bind("<Return>", self.save)
     def change_terms_state(self):
