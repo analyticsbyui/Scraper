@@ -4,3 +4,6 @@ byuipages*
 /output.txt
 *.png
 /olds
+/build
+/dist
+scraper.spec

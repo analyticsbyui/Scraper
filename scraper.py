@@ -19,8 +19,9 @@ import pandas as pd
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
-import re
+import regex as re
 import traceback
+import sqlite3
 #import os
 # config variables
 crawl = True
@@ -42,6 +43,61 @@ terms = True
 
 scan_id=datetime.now().strftime('%d%m%Y')
 pindex=1
+
+
+dbct=datetime.now().strftime('index-%Y%m%d.db')
+def create_tables():
+  con = sqlite3.connect(dbct)
+  cur = con.cursor()
+  cur.execute("CREATE TABLE words(url, word, key)")
+
+def insert_indexes(rows):
+  con = sqlite3.connect(dbct)
+  cur = con.cursor()
+  cur.executemany("INSERT INTO words VALUES(?)",rows)
+  
+def clean_document(doc):
+
+  doc=doc.replace("'","")
+  
+  r=re.compile('[^a-zA-Z0-9 \n]+')
+  doc=r.sub(' ',doc)
+  
+  r=re.compile(' +')
+  doc=r.sub(' ',doc)
+  
+  r=re.compile('[\n ]{2,}')
+  doc=r.sub('\n',doc)
+  return doc
+
+def count_matches(word,doc):
+  #print(word,re.findall(f'(?<=[ \n]|^){word}?=[ \n]|$',doc),f'(?<=[ \n]|^){word}?=[ \n]|$')
+  return len(re.findall(f'(?<=[ \n]|^){word}(?=[ \n]|$)',doc))
+
+def tf(doc,url):
+  doc=clean_document(doc)
+  to_insert=[]
+  results={}
+  lines=doc.split('\n')
+  for line in lines:
+    words=line.split(' ')
+    for word in words:
+      if(word not in results):
+        results[word]=count_matches(word,doc)
+
+  
+  for size in range(2,6):
+  
+    lines=doc.split('\n')
+    for line in lines:
+      words=line.split(' ')
+      for a in range(len(words)-size+1):
+        word=' '.join(words[a:a+size])
+        results[word]=count_matches(word,doc)
+        to_insert.append((url,word,results[word],))
+
+  insert_indexes(rows)
+
 
 # add_identifier_to_url adds an identifier to the url for potential tracking purposes
 def add_identifier_to_url(url):
@@ -397,6 +453,9 @@ def test_url(url):
         "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
     if(config['columns']['loadTime']):
         page.title = driver.title
+    doc=driver.execute_script(
+        "return document.body")    
+    tf(doc,current_url)
 
 def start_driver():
     global driver
@@ -484,7 +543,9 @@ def main():
     global driver
     global urls_to_visit
     global pages_visited
-
+    
+    create_tables()
+    
     urls_to_visit = []
     pages_visited = []
 
