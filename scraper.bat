@@ -1,1 +1,1 @@
-C:\Python39\python.exe scraper.py
+python scraper.py
