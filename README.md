@@ -2,7 +2,7 @@
 
 Here goes the scraper documentation
 
--overview
--goals
--development environments
--technologies
+* overview
+* goals
+* development environments
+* technologies
