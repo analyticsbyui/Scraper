@@ -396,7 +396,7 @@ def test_url(url):
     if(config['columns']['loadTime']):
         page.loadTime = driver.execute_script(
         "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
-    if(config['columns']['loadTime']):
+    if(config['columns']['title']):
         page.title = driver.title
 
 def start_driver():
