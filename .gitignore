@@ -4,3 +4,4 @@ byuipages*
 /output.txt
 *.png
 /olds
+blacklist*

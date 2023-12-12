@@ -10,6 +10,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.chrome.service import Service
 import json
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
@@ -262,7 +263,7 @@ def test_url(url):
         driver.get(page_url_with_identifier)
         #driver.refresh()
     except (MaxRetryError, ConnectionResetError) as e:
-        finish()
+        #finish()
         return
     except (Exception) as e:
         # this should ideally never happen
@@ -417,11 +418,11 @@ def start_driver():
     )
 
     # default capabilities
-    capabilities = DesiredCapabilities.CHROME
+    #capabilities = DesiredCapabilities.CHROME
+    chrome_options.capabilities.update(DesiredCapabilities.CHROME)
 
     # enable logging so we can get the network logs
-    capabilities["goog:loggingPrefs"] = {
-        "performance": "ALL"}  # chromedriver 75+
+    chrome_options.set_capability("goog:loggingPrefs", {'performance': 'ALL'})
 
     # Turn off gpu and extensions, these can cause weird problems
     chrome_options.add_argument("--disable-extensions")
@@ -436,9 +437,10 @@ def start_driver():
     # we use this so we can crawl the page for links before continuing on to log analytics calls
     chrome_options.page_load_strategy = "eager"
 
+    service = Service(executable_path=ChromeDriverManager().install())
+
     # set up the webdriver. chromedrivermanager automatically installs and manages it for us
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options,
-                              desired_capabilities=capabilities)
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     ################################################################################
 
 def get_pages():
