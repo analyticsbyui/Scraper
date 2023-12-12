@@ -516,7 +516,7 @@ def finish():
     with open('config.json') as f:
         config=json.loads(f.read())
     df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
-    date = datetime.today().strftime("%m-%d-%y")
+    date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
     df.to_csv(f"byuipages {date}.csv")
 
     driver.quit()
