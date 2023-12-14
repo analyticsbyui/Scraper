@@ -213,7 +213,7 @@ class Page:
             "errorCode": self.errorCode,
             "tracking_ids": self.tracking_ids,
             "loadTime": self.loadTime,
-            "dateCrawled": self.dateCrawled,
+            "dateCrawled": self.dateCrawled.strftime("%m/%d/%Y, %H:%M:%S"),
             "cookies": self.cookies,
             "links": self.haslinks,
             "terms": self.terms,
@@ -510,14 +510,19 @@ def main():
               "Visited: " + str(count))
               
     finish()
-
+    
 # finish saves the crawl data into a csv file
 def finish():
-    with open('config.json') as f:
-        config=json.loads(f.read())
-    df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
     date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
-    df.to_csv(f"byuipages {date}.csv")
+    # df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
+    # df.to_csv(f"byuipages {date}.csv")
+    data = []
+    for i in range(len(pages_visited)):    
+        data.append(pages_visited[i].as_dict())
+    
+    templatejson ={"data": data}
+    with open(f"byuipages {date}.json", 'w') as f:
+        json.dump(templatejson, f)
 
     driver.quit()
     unset_keepawake()
