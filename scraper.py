@@ -22,7 +22,7 @@ from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
 import re
 import traceback
-#import os
+import os
 # config variables
 crawl = True
 use_sitemap = True
@@ -207,6 +207,8 @@ class Page:
     def as_dict(self):
         global pindex
         r_dict={}
+        r_dict['scan_id']=scan_id+str(pindex)
+        pindex+=1
         c_dict={
             "url": self.normalized_url,
             "aliases": self.aliases,
@@ -235,8 +237,7 @@ class Page:
                 pass
             except Exception as e:
                 pass
-        r_dict['scan_id']=scan_id+str(pindex)
-        pindex+=1
+        
         return r_dict
 
     def __str__(self):
@@ -466,6 +467,9 @@ def get_pages():
                                 page.add_link(page_url)
                                 page.is_file=1
                                 urls_to_visit.append(page_url)
+        else:
+            page.errorCode = resp.status_code
+
     if(config['use_links']):
         # this code below will load in URLs from a txt file
         with open(config['links'], "r") as file:
@@ -475,7 +479,6 @@ def get_pages():
     if(config['catalog']):
         catalog_id=requests.get('https://byui.kuali.co/api/v1/catalog/public/catalogs/current').json()['_id']
         navigation=requests.get(f"https://byui.kuali.co/api/v1/catalog/public/catalogs/{catalog_id}").json()['settings']['catalog']['navigation']
-        urls=[]
         for page in navigation:
             urls_to_visit.append('https://www.byui.edu/catalog#'+page['to'])
 
@@ -520,9 +523,23 @@ def finish():
     for i in range(len(pages_visited)):    
         data.append(pages_visited[i].as_dict())
     
-    templatejson ={"data": data}
-    with open(f"byuipages {date}.json", 'w') as f:
+    templatejson ={date: data}
+    original_filename = "recent_site_scan.json"
+    
+    try:
+        f = open(original_filename, 'r')
+        prev_json = json.load(f)
+        f.close()
+        old_time_stamp = list(prev_json.keys())[0]
+        new_filename = f'byuipages {old_time_stamp}.json'
+
+        os.rename(original_filename, new_filename)
+    except FileNotFoundError:
+        pass
+
+    with open(original_filename, 'x') as f:
         json.dump(templatejson, f)
+
 
     driver.quit()
     unset_keepawake()
