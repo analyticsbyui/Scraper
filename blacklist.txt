@@ -1,4 +1,5 @@
 adam.byui.edu
+archives.byui.edu
 brightspotcdn.byui.edu
 byui.az1.qualtrics.com
 byui.evenue.net
@@ -40,6 +41,7 @@ scheduling.byui.edu
 secure.byui.edu
 secure.zenfolio.com
 server.iad.liveperson.net
+spc.byui.edu
 spencer.byui.edu
 stream.byui.edu
 streaming.byui.edu

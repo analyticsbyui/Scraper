@@ -29,10 +29,10 @@ use_sitemap = True
 max_pages = 10
 '''
 aliases = True #The scraper will not be efficient without comparing aliases. Aliases modes maybe?
-errorCode = True #Very few cases almost not used.
+error_code = True #Very few cases almost not used.
 tracking_ids = True # this can save some time.
-loadTime = True # Could not sev too much time.
-dateCrawled = True
+load_time = True # Could not sev too much time.
+date_crawled = True
 cookies =True
 links = True #Almost same as Crawled
 terms = True
@@ -44,12 +44,16 @@ terms = True
 scan_id=datetime.now().strftime('%d%m%Y')
 pindex=1
 
-# add_identifier_to_url adds an identifier to the url for potential tracking purposes
 def add_identifier_to_url(url):
+    ''' Adds an identifier to the url for potential tracking purposes.
+        Returns a string.'''
+
+    # Check for query string.
     if "?" in url:
         return url + "&analyticsIntegrationVerificationBot"
     else:
         return url + "?analyticsIntegrationVerificationBot"
+    
 blacklist=None
 def check_blacklist_old(url):
     global blacklist
@@ -88,59 +92,156 @@ def check_blacklist_old(url):
             return False
     return True
 
+
 def init_matches(path):
+    ''' Opens a file and creates cases for a string search or 
+        regex comparison.
+        Returns a dictionary '''
+    
+    # Create dictionary.
     cases={'str':[],'re':[]}
+
+    # Open file.
     with open(path) as file:
         for line in file:
+
+            # Format line ignoring spaces.
             line=line.replace('\n','')
             line=line.replace('\r','')
+            
+            # Check if line is regex format.
             if line[0]=='/':
                 if line[-1]=='/':
+                    
+                    # Append to regex key.
                     cases['re'].append(line[1:-1])
                 else:
+
+                    # Append to string key.
                     cases['str'].append(line)
             else:
+
+                # Append to string key.
                 cases['str'].append(line)
+
     return cases    
 
-def check_matches(cases,text,not_reversed=True,callback=None):
-        #print(blacklist)
+def check_matches(cases,text,callback=None):
+    ''' Check for matches between a set of cases and a given text.
+        Callback is only passed when this function is originally called
+        by check_blacklist
+        Returns a bool.'''
+        
+    found = True
     for q in cases['str']:
+        
+        # Search for word in provided text.
         if q in text:
-            if callback!=None:
-                callback(text)
-            return not_reversed
-    for q in cases['re']:
-        if re.search(q,text)!=None:
-            if callback!=None:
-                callback(text)
-            return not_reversed
-    return not not_reversed
 
-def check_matches_config(cases_name,text,not_reversed=True,callback=None):
+            # If callback is passed, call the function.
+            if callback!=None:
+                callback(text)
+
+            # Word found.
+            return found
+    
+    for q in cases['re']:
+        
+        # Perform a regex match.
+        if re.search(q,text)!=None:
+
+            # If callback is passed, call the function.
+            if callback!=None:
+                callback(text)
+
+            # Match found.
+            return found
+    
+    # Text does not have a match.
+    return not found
+
+def check_matches_config(cases_name,text,callback=None):
+    '''Wrapper Function:
+        This function is made to call check_matches with the right params based 
+        on the caller of this function (e.g. whitelist or blacklist cheker).
+        Returns a bool.'''
+    
+    # This line was used to get the cases from global variables, it would involve setting
+    # the variable somwhere in the code, we do it all through the config window now.
     cases=globals()[cases_name]
+    
     global config
+
+    # Check if variables exist or if they are empty
     if (cases==None):
+
+        # Call function to create cases.
         cases=init_matches(config[cases_name])
-    return check_matches(cases,text,not_reversed,callback)
+  
+    # Call main check function, return its result.
+    return check_matches(cases,text,callback)
+
 def check_blacklist_callback(url):
+    ''' A callback function that will write the given url to the 
+        blacklist_output file'''
+    
+    # Check that there is a file specifided in the configuration.
     if(config['use_blacklist_output']):
+
         with open(config['blacklist_output'],'a') as f:
+            
+            # Write a line with the given url
             print(url,file=f)
+
 def check_blacklist(url):
-    return check_matches_config('blacklist',url,False,callback=check_blacklist_callback)
-whitelist=None
+    '''Cheks if the given url is valid by checking the blacklist.
+        Returns a bool.'''
+    
+    # Call the wrapper function
+    if check_matches_config('blacklist',url,callback=check_blacklist_callback):
+
+        # If url is blacklisted then it is not valid, return False
+        return False
+    else:
+
+        # If url is not blacklisted then it is valid, return True
+        return True
+
+#whitelist=None
 def check_whitelist(url):
+    '''Checks if the given url is valid by checking the whitelist.
+        Returns a bool.'''
+    
+    # Call the wrapper function.
     return check_matches_config('whitelist',url)
-terms=None
+    
+#terms=None
 def check_terms(body):
+    '''Checks if the given content of a page includes any terms given in the
+        config settings.
+        Returns a bool.'''
+    
+    # Call the wrapper function
     return check_matches_config('terms',body.lower())
-normalize_excuses=init_matches('normalize_exceptions.txt')
+
+# Create cases from the normalize file.
+normalize_excuses = init_matches('normalize_exceptions.txt')
+
 def check_normalize(url):
+    '''Checks if the given url has the standard structure for a byui url page.
+        Returns a bool.'''
+    
+    # Access the already created excuses.
     global normalize_excuses
+
+    # Call main check function, return its result.
     return check_matches(normalize_excuses,url)
-# normalize_url removes query string and hash and it makes sure we're using https
+
 def normalize_url(url):
+    ''' Removes query string and hash and makes sure we're using https.
+        Returns a string.'''
+    
+    # Check if we need to format the url or it is already done.
     if(check_normalize(url)):
         return url
     else:
@@ -148,18 +249,27 @@ def normalize_url(url):
         url = url.split("#")[0]
         url = url.split("://")[1]
 
+        # Remove slash from the end of the url.
         if url[-1] == '/':
             url = url[:-1]
 
+        # Return formated url.
         return "https://" + url.lower()
 
-# gets a page object from the pages_visited list
 def get_page_visited(url):
-    url = normalize_url(url)
+    ''' Gets a Page object from the pages_visited list.
+        Returns a Page.'''
+    
+    url = normalize_url(url) #this might not be necessary if we normalize its inputs before calling the function
+
+    # Get the first page that matches the provided url or has the url as alias.
+    # If not found return None.
     return next((page for page in pages_visited if page.get_url() == url or url in page.get_aliases()), None)
 
-# process_browser_logs_for_network_events filters network requests from browser logs
 def process_browser_logs_for_network_events(logs):
+    '''Filters network requests from browser logs.
+        Yields a dictionary with the log information.'''
+    
     for entry in logs:
         log = json.loads(entry["message"])["message"]
         if (
@@ -170,65 +280,92 @@ def process_browser_logs_for_network_events(logs):
             yield log
 
 
-# Page represents a webpage as an object with the data we care about
 class Page:
+    '''This class represents a webpage as an object with the data we care about.'''
+    
     def __init__(self, url):
+        '''Simple constructor setting vlaues to the page.'''
         self.normalized_url = normalize_url(url)
         self.aliases = []
         self.tracking_ids = []
         self.add_alias(url)
-        self.errorCode = ""
-        self.loadTime = 0
-        self.dateCrawled = datetime.now()
+        self.error_code = ""
+        self.load_time = 0
+        self.date_crawled = datetime.now()
         self.cookies = []
-        self.haslinks = []
+        self.has_links = []
         self.terms = 0
         self.title = ''
         self.is_file = 0
 
     def get_aliases(self):
+        '''Return page aliases.'''
         return self.aliases
 
     def get_url(self):
+        '''Return page url.'''
         return self.normalized_url
 
     def add_alias(self, alias):
+        '''Add aditional aliases to the alias list.'''
+
+        # Confirm alias is a new url.
         if alias not in self.aliases and alias.lower() != self.normalized_url:
             self.aliases.append(alias)
 
     def add_tracking_id(self, tracking_id, type):
+        '''Add id and type to the tracking_id property of Page.'''
+
+        # Create the dictionary.
         tracking_pair = {"id": tracking_id, "type": type}
+
+        # Confirm the dictionary is new.
         if tracking_pair not in self.tracking_ids:
             self.tracking_ids.append(tracking_pair)
 
     def add_link(self, link):
-        self.haslinks.append(link)
+        '''Add aditional links to the has_link list'''
+        self.has_links.append(link)
 
     def as_dict(self):
+        '''Format Page information into a dictionary for easy storing.'''
+
         global pindex
+
+        # Create empty "row dictionary".
         r_dict={}
         r_dict['scan_id']=scan_id+str(pindex)
         pindex+=1
+
+        # Create "column dictionary" using Page attributes
         c_dict={
             "url": self.normalized_url,
             "aliases": self.aliases,
-            "errorCode": self.errorCode,
+            "error_code": self.error_code,
             "tracking_ids": self.tracking_ids,
-            "loadTime": self.loadTime,
-            "dateCrawled": self.dateCrawled.strftime("%m/%d/%Y, %H:%M:%S"),
+            "load_time": self.load_time,
+            "date_crawled": self.date_crawled.strftime("%m/%d/%Y, %H:%M:%S"),
             "cookies": self.cookies,
-            "links": self.haslinks,
+            "links": self.has_links,
             "terms": self.terms,
             "title": self.title,
             "is_file": self.is_file
         }
         global config
+
+        #Iterate through config file to know what columns are expected.
         for column in config['columns']:
             try:
+
+                # Confirm if current column was checked in config window.
                 if config['columns'][column]:
                     if column !='terms':
+
+                        # Creates a row and gives it the value of that column.
                         r_dict.update([[column,c_dict[column]]])
                     else:
+                        
+                        # Confirm if terms file was provided in config window.
                         if(config['use_terms']):
                             r_dict.update([['terms',c_dict[column]]])
                         else:
@@ -241,101 +378,153 @@ class Page:
         return r_dict
 
     def __str__(self):
+        "Return the string version of the dicttionary."
         return str(self.as_dict())
 
-# page_loaded checks the ready state of the web page
 def page_loaded(driver):
+    '''Checks the ready state of the web page.
+        Returns a bool.'''
+
     if(config['catalog']):
-        return driver.execute_script("return document.readyState") == "complete" and driver.execute_script("return ((new Date()).getTime()-lastTime)>2000") #and  expected_conditions.presence_of_element_located((By.ID,'__KUALI_TLP'))
+        
+        # Confirm that document has loaded and that last update happened more 
+        # than 2 seconds ago. 
+        return (driver.execute_script("return document.readyState") == "complete" 
+                and driver.execute_script("return ((new Date()).getTime()-lastTime)>2000")) #and  expected_conditions.presence_of_element_located((By.ID,'__KUALI_TLP'))
     else:
+
+        # Confirm that document has loaded.
         return driver.execute_script("return document.readyState") == "complete" 
 
-# test_url runs the main logic for crawling a webpage
 def test_url(url):
+    '''Main logic for crawling a webpage.'''
+
     global config
     print(url)
 
+    # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
 
-    # load the page
+    # Load the page.
     try:
-        # reset cookies after every page so they're fresh
+        # Reset cookies after every page so they're fresh.
         driver.delete_all_cookies()
         driver.get(page_url_with_identifier)
-        #driver.refresh()
     except (MaxRetryError, ConnectionResetError) as e:
-        #finish()
         return
     except (Exception) as e:
-        # this should ideally never happen
+
+        # This should ideally never happen.
         print("super broken", e)
         return
 
+    # Fromat current url to standard.
     current_url = normalize_url(driver.current_url)
 
+    # Create a Page object
     page = Page(current_url)
 
-    # handle redirects
+    page.title = driver.title
+
+    # Handle redirects.
     if current_url != url:
-        # a mismatching url after the page loads probably means we were redirected
+        
+        # A mismatching url when page loads probably means we were redirected.
         print("url mismatch. redirected?")
 
+        # Check if current_url is in queue to visit.
         if current_url in urls_to_visit:
             urls_to_visit.remove(current_url)
 
+        # Check if page has already been visited.
         page_visited = get_page_visited(current_url)
 
+        # Page has been visited, no need to continue scraping.
         if page_visited != None:
+
+            # Set page's url as alias for visited page.
             page_visited.add_alias(url)
-            print("already visited")
+            print("Page Already visited")
             return
         else:
+
+            # Add url as alias for the current Page object.
             page.add_alias(url)
 
     pages_visited.append(page)
 
-    # search for chrome error
+    # Search for chrome error in Single Page Applications.
     try:
         elem = driver.find_element(By.ID, "error-information-popup-content")
-
         print(elem.find_element(By.CLASS_NAME, "error-code").text)
-        page.errorCode = elem.find_element(By.CLASS_NAME, "error-code").text
+        page.error_code = elem.find_element(By.CLASS_NAME, "error-code").text
+
+        # Error found. No need to continue.
         return
     except:
         pass
 
-    # chrome returns empty page source if page is not found while running headless
+    # Chrome returns empty page source if page is not found 
+    # while running headless.
     if "<body></body>" in driver.page_source:
         print("body empty")
-        page.errorCode = "404"
+        page.error_code = "404"
         #return
 
-    # check page title for 404
+    # Check page title for 404.
     if "404" in driver.title:
         print("404")
-        page.errorCode = "404"
-        #return
+        page.error_code = "404"
 
-    # crawl the page for links
-    # because the page load is set to eager, we need to wait until everything else is loaded before checking network requests and cookies
-    driver.execute_script("lastTime=(new Date()).getTime() ; const config = { attributes: true, childList: true, subtree: true };const targetNode = document.body;const callback = (mutationList, observer) => {lastTime=(new Date()).getTime();};const observer = new MutationObserver(callback);observer.observe(targetNode, config);")
+        # Page not found, no need to continue.
+        return
+    
+    # Check page status for error status codes.
+    # try:
+    #     resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+    #     print(resp)
+    #     if "404" == resp.status_code:
+    #         print(resp.status_code)
+    #         page.error_code = resp.status_code
+
+    #         # Page not found, no need to continue.
+    #         return
+    # except (Exception) as e:
+    #     pass
+
+
+
+    # Crawl the page for links.
+    # Since page load is set to eager, we need to wait until everything else is 
+    # loaded before checking network requests and cookies.
+    driver.execute_script('''
+        lastTime=(new Date()).getTime();
+        const config = { attributes: true, childList: true, subtree: true };
+        const targetNode = document.body;
+        const callback = (mutationList, observer) => {lastTime=(new Date()).getTime();};
+        const observer = new MutationObserver(callback);observer.observe(targetNode, config);
+                          ''')
     WebDriverWait(driver, timeout=10).until(page_loaded)
-    #driver.save_screenshot(str(len(pages_visited))+'.png')
+    # #driver.save_screenshot(str(len(pages_visited))+'.png')
     
     if crawl:
-        #if(config['catalog']):
-        #    sleep(1)
+
+        # Get all a tags.
         links = driver.find_elements(By.TAG_NAME, "a")
 
         for link in links:
             try:
                 url = link.get_attribute("href")
+                
+                # "href" not found.
                 if url == None:
                     continue
 
+                # Not an absolute link 
                 if "://" not in url:
                     continue
 
+                # Empty string
                 if url.strip() == "":
                     continue
 
@@ -343,12 +532,22 @@ def test_url(url):
 
                 page.add_link(url)
 
-                # check if the url contains scope domain and that it isn't already queued to be visited
-                if "byui.edu" in normalized_url and normalized_url not in urls_to_visit and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  and (not config['use_whitelist'] or check_whitelist(url)):
-                    # check file extensions
-                    if not any(substring in normalized_url for substring in [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
+                # Check if the url contains scope domain and that it isn't 
+                # already queued to be visited or in black and whitelist.
+                if ("byui.edu" in normalized_url and normalized_url not in urls_to_visit 
+                    and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  
+                    and (not config['use_whitelist'] or check_whitelist(url))):
+                    
+                    # Check for file extensions.
+                    if not any(substring in normalized_url for substring in 
+                            [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", 
+                            ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
+                        
                         urls_to_visit.append(normalized_url)
                     elif config['files']:
+                        '''
+                            CHECK WITH JOSUE TO SEE WHAT IS EXPECTED WHEN  "FILES" IS SELECTED
+                        '''
                         page=Page("normalized_url")
                         pages_visited.append(page)
             except StaleElementReferenceException:
@@ -356,9 +555,10 @@ def test_url(url):
 
     
     
-
+    # Set Page cookies from driver cookies.
     page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
 
+    # Check if tracking_ids was selected
     if(config['columns']['tracking_ids']):
 
         logs = driver.get_log("performance")
@@ -372,10 +572,12 @@ def test_url(url):
                 parsed_url = urlparse(url)
                 query_params = parse_qs(parsed_url.query)
 
-                # if the url the request was made for doesn't match the page we're scanning, skip it
+                # If the url the request was made for doesn't match the page 
+                # we're scanning, skip it.
                 if docUrl != driver.current_url:
                     continue
-
+                
+                # Add tracking id's to Page object.
                 if "google-analytics.com/collect" in url or "google-analytics.com/j/collect" in url:
                     page.add_tracking_id(query_params['tid'][0], "GA")
 
@@ -385,21 +587,28 @@ def test_url(url):
                 if "googletagmanager.com/gtag/js" in url:
                     page.add_tracking_id(query_params['id'][0], "GTAG")
 
+    if(config['columns']['terms'] and not config['use_terms']):
+
+        # Search if term exists in page content.
+        body = driver.execute_script('return document.body.innerText')
+        page.terms = (config['term'] in body)+0
+    elif config['use_terms']:
+        body = driver.execute_script('return document.body.innerText')
+
+        # Use check_matches to find if any term in file matches page content.
+        page.terms = (check_terms(body))+0
+
+    '''
+        domContentLoadedEventEnd IS DEPRECATED
+    '''
     # this load time isn't used for anything, i just threw it in at some point.
     # it's worth double checking at some point
     # this SO answer gives a good overview of what checkpoints are logged in the page loading https://stackoverflow.com/a/14878493
-    if(config['columns']['terms'] and not config['use_terms']):
-        body=driver.execute_script('return document.body.innerText')
-        page.terms=(config['term'] in body)+0
-    elif config['use_terms']:
-        body=driver.execute_script('return document.body.innerText')
-        page.terms=(check_terms(body))+0
-    if(config['columns']['loadTime']):
-        page.loadTime = driver.execute_script(
-        "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
-    if(config['columns']['loadTime']):
-        page.title = driver.title
+    # if(config['columns']['load_time']):
+    #     page.load_time = driver.execute_script(
+    #     "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
 
+#-------------------------------------------------------------------------------
 def start_driver():
     global driver
     global config
@@ -468,7 +677,7 @@ def get_pages():
                                 page.is_file=1
                                 urls_to_visit.append(page_url)
         else:
-            page.errorCode = resp.status_code
+            page.error_code = resp.status_code
 
     if(config['use_links']):
         # this code below will load in URLs from a txt file
@@ -507,7 +716,7 @@ def main():
         except (Exception) as e:
             print('Error: ',e)
             traceback.print_exc()
-#            test_url(url)
+
 
         print("Sites left: " + str(len(urls_to_visit)),
               "Visited: " + str(count))
