@@ -199,10 +199,10 @@ class ConfigScraper:
         self.columns={
             'url':{'disabled':True,'state':True},
             'aliases':{'disabled':False,'state':False},
-            'errorCode':{'disabled':False,'state':False},
+            'error_code':{'disabled':False,'state':False},
             'tracking_ids':{'disabled':False,'state':False},
-            'loadTime':{'disabled':False,'state':False},
-            'dateCrawled':{'disabled':False,'state':False},
+            'load_time':{'disabled':False,'state':False},
+            'date_crawled':{'disabled':False,'state':False},
             'cookies':{'disabled':False,'state':False},
             'links':{'disabled':False,'state':False},
             'title':{'disabled':False,'state':False},

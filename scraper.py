@@ -214,7 +214,16 @@ def check_whitelist(url):
     
     # Call the wrapper function.
     return check_matches_config('whitelist',url)
+
+def check_standard(url):
+    '''Check if url is in scope domain, is not in blacklist or is 
+        in included in whitelist.
+        Returns a bool.'''
     
+    return ('byui.edu' in url
+            and (not config['use_blacklist'] or check_blacklist(url))  
+            and (not config['use_whitelist'] or check_whitelist(url)))
+
 #terms=None
 def check_terms(body):
     '''Checks if the given content of a page includes any terms given in the
@@ -476,21 +485,21 @@ def test_url(url):
         print("404")
         page.error_code = "404"
 
-        # Page not found, no need to continue.
-        return
+        ## Page not found, no need to continue.
+        #return
     
     # Check page status for error status codes.
-    # try:
-    #     resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-    #     print(resp)
-    #     if "404" == resp.status_code:
-    #         print(resp.status_code)
-    #         page.error_code = resp.status_code
+    try:
+        resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
+        print(resp)
+        if "404" == resp.status_code:
+            print(resp.status_code)
+            page.error_code = resp.status_code
 
-    #         # Page not found, no need to continue.
-    #         return
-    # except (Exception) as e:
-    #     pass
+            ## Page not found, no need to continue.
+            #return
+    except (Exception) as e:
+        pass
 
 
 
@@ -532,11 +541,11 @@ def test_url(url):
 
                 page.add_link(url)
 
-                # Check if the url contains scope domain and that it isn't 
-                # already queued to be visited or in black and whitelist.
-                if ("byui.edu" in normalized_url and normalized_url not in urls_to_visit 
-                    and get_page_visited(url)== None and (not config['use_blacklist'] or check_blacklist(url))  
-                    and (not config['use_whitelist'] or check_whitelist(url))):
+                # Confirm url is not in queue to visit or already visited
+                # and perform standard validation check.
+                if (normalized_url not in urls_to_visit 
+                    and get_page_visited(url)== None 
+                    and check_standard(url)):
                     
                     # Check for file extensions.
                     if not any(substring in normalized_url for substring in 
@@ -568,13 +577,13 @@ def test_url(url):
         for event in events:
             if event['method'] == 'Network.requestWillBeSent':
                 url = event['params']['request']['url']
-                docUrl = event['params']['documentURL']
+                doc_url = event['params']['documentURL']
                 parsed_url = urlparse(url)
                 query_params = parse_qs(parsed_url.query)
 
                 # If the url the request was made for doesn't match the page 
                 # we're scanning, skip it.
-                if docUrl != driver.current_url:
+                if doc_url != driver.current_url:
                     continue
                 
                 # Add tracking id's to Page object.
@@ -608,14 +617,16 @@ def test_url(url):
     #     page.load_time = driver.execute_script(
     #     "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
 
-#-------------------------------------------------------------------------------
 def start_driver():
+    ''' Set up configurations for the selenium driver.'''
     global driver
     global config
-    # this block sets up selenium settings
-    ################################################################################
+
+    # This block sets up selenium settings.
+    ############################################################################
     chrome_options = Options()
-    # these settings are an effort to disable file downloads
+
+    # These settings are an effort to disable file downloads.
     prefs = {
         "download_restrictions": 3,
         "download.open_pdf_in_system_reader": False,
@@ -623,47 +634,53 @@ def start_driver():
         "download.default_directory": "/dev/null",
         "plugins.always_open_pdf_externally": False
     }
-    chrome_options.add_experimental_option(
-        "prefs", prefs
-    )
+    chrome_options.add_experimental_option("prefs", prefs)
 
-    # default capabilities
-    #capabilities = DesiredCapabilities.CHROME
+    # Default capabilities.
     chrome_options.capabilities.update(DesiredCapabilities.CHROME)
 
-    # enable logging so we can get the network logs
+    # Enable logging so we can get the network logs.
     chrome_options.set_capability("goog:loggingPrefs", {'performance': 'ALL'})
 
-    # Turn off gpu and extensions, these can cause weird problems
+    # Turn off gpu and extensions, these can cause weird problems.
     chrome_options.add_argument("--disable-extensions")
     chrome_options.add_argument("--disable-gpu")
-    # run headless so that the chrome window stays hidden
+
+    # Run headless so that the chrome window stays hidden.
     chrome_options.add_argument("--enable-javascript")
     if(not config['catalog']):
-        
         chrome_options.add_argument("--headless")
 
-    # eager loading lets the program continue after the html is loaded, but before everthing else has finished loading
-    # we use this so we can crawl the page for links before continuing on to log analytics calls
+    # Eager loading lets the program continue after the html is loaded, but 
+    # before everthing else has finished loading we use this so we can crawl the
+    # page for links before continuing on to log analytics calls.
     chrome_options.page_load_strategy = "eager"
 
     service = Service(executable_path=ChromeDriverManager().install())
 
-    # set up the webdriver. chromedrivermanager automatically installs and manages it for us
+    # Set up the webdriver. 
+    # chromedrivermanager automatically installs and manages it for us.
     driver = webdriver.Chrome(service=service, options=chrome_options)
-    ################################################################################
+    ############################################################################
 
 def get_pages():
+    '''Add first pages to the queue based on the configurations of the program.
+        This method only runs at the start of the program.'''
     global urls_to_visit
     global use_sitemap
     global config
-    # get initial page list from the sitemap
-    # we use a normal requests.get call here instead of accessing it through selenium
+
+    # Get URL's from the sitemap.
     if use_sitemap:
         page = Page("https://www.byui.edu/sitemap")
         pages_visited.append(page)
+
+        # Use a normal requests.get call here 
+        # instead of accessing it through selenium.
         resp = requests.get("https://www.byui.edu/sitemap",
                             headers={'User-Agent': 'Mozilla/5.0'})
+        
+        # Check that sitemap loads properly.
         if (resp.status_code == 200):
             root = ElementTree.fromstring(resp.content)
             for child in root:
@@ -672,28 +689,41 @@ def get_pages():
                         if url.tag == "{http://www.sitemaps.org/schemas/sitemap/0.9}loc":
                             page_url = normalize_url(url.text)
 
-                            if "byui.edu" in page_url  and (not config['use_blacklist'] or check_blacklist(page_url)) and (not config['use_whitelist'] or check_whitelist(page_url) ):
+                            # Perform standard validation check.
+                            if (check_standard(page_url)):
                                 page.add_link(page_url)
-                                page.is_file=1
+                                page.is_file = 1
                                 urls_to_visit.append(page_url)
         else:
+
+            # Attatch error code to page.
             page.error_code = resp.status_code
 
+    # Get URLs from a txt file.
     if(config['use_links']):
-        # this code below will load in URLs from a txt file
         with open(config['links'], "r") as file:
            for line in file:
                page_url = normalize_url(line.strip())
                urls_to_visit.append(page_url)
-    if(config['catalog']):
-        catalog_id=requests.get('https://byui.kuali.co/api/v1/catalog/public/catalogs/current').json()['_id']
-        navigation=requests.get(f"https://byui.kuali.co/api/v1/catalog/public/catalogs/{catalog_id}").json()['settings']['catalog']['navigation']
-        for page in navigation:
-            urls_to_visit.append('https://www.byui.edu/catalog#'+page['to'])
 
-# main sets up selenium, checks the sitemap for the initial list of pages, and runs the crawl
+    if(config['catalog']):
+        
+        # Get the ID of the catalog from Kuali
+        catalog_id = requests.get('https://byui.kuali.co/api/v1/catalog/public/catalogs/current').json()['_id']
+
+        # Access Kuali to get the addresses for all the pages in the catalog.
+        navigation = requests.get(f"https://byui.kuali.co/api/v1/catalog/public/catalogs/{catalog_id}").json()['settings']['catalog']['navigation']
+
+        # Create a complete URL with the page address and add to queue.
+        for page in navigation:
+            urls_to_visit.append('https://www.byui.edu/catalog/#' + page['to'])
+
 def main():
-    # don't let the computer sleep while the script runs. if the computer sleeps, the crawl breaks
+    ''' Run the entire program in order'''
+
+
+    # Don't let the computer sleep while the script runs. 
+    # If the computer sleeps, the crawl breaks
     set_keepawake(keep_screen_awake=False)
     global driver
     global urls_to_visit
@@ -702,11 +732,13 @@ def main():
     urls_to_visit = []
     pages_visited = []
 
+    # Set up Selenium Driver.
     start_driver()
 
+    # Create initial list of pages to visit.
     get_pages()
 
-    # crawl each page in the list
+    # Crawl each page in the list
     count = 0
     while len(urls_to_visit) > 0 and count < max_pages:
         url = urls_to_visit.pop()
@@ -717,56 +749,69 @@ def main():
             print('Error: ',e)
             traceback.print_exc()
 
-
         print("Sites left: " + str(len(urls_to_visit)),
               "Visited: " + str(count))
-              
+
+    # Store data collected          
     finish()
     
-# finish saves the crawl data into a csv file
 def finish():
+    '''Save the crawl data into a csv file or json file.'''
+
     date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
+
+    # Save as a CSV file.
     # df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
     # df.to_csv(f"byuipages {date}.csv")
-    data = []
-    for i in range(len(pages_visited)):    
-        data.append(pages_visited[i].as_dict())
+
+    data = [page.as_dict() for page in pages_visited]
     
     templatejson ={date: data}
+
+    # For an easier interpreteation of data every new scan will be
+    # called the "recent_site_scan".
     original_filename = "recent_site_scan.json"
     
     try:
-        f = open(original_filename, 'r')
-        prev_json = json.load(f)
-        f.close()
-        old_time_stamp = list(prev_json.keys())[0]
-        new_filename = f'byuipages {old_time_stamp}.json'
 
-        os.rename(original_filename, new_filename)
+        # Get the date of the most recent scan file and update it's name to 
+        # "byuipages {date}" to keep a file naming standard.
+        with open(original_filename, 'r'):
+            prev_json = json.load(f)
+            old_time_stamp = list(prev_json.keys())[0]
+            new_filename = f'byuipages {old_time_stamp}.json'
+            os.rename(original_filename, new_filename)
     except FileNotFoundError:
         pass
 
+    # Save as a JSON file.
     with open(original_filename, 'x') as f:
         json.dump(templatejson, f)
-
 
     driver.quit()
     unset_keepawake()
     sys.exit(0)
 
-# run the finish function if the program is closed early for some reason
 def sighandle(sig, frame):
+    '''Run the finish function if the program is closed early for some reason'''
     finish()
-config=None 
-# this is mostly just good practice, but this runs the main function only if we are in the main thread
+
+config = None
+
+# This is mostly good practice, this runs the main function 
+# only if we are in the main thread.
 if __name__ == "__main__":
-    # this sets up the sighandle function so that it will capture exit signals
+    '''Initial set up using confi.py and reading its output.'''
     #os.system('config.pyw')
     import config
     with open('config.json') as f:
-        config=json.loads(f.read())
+        config = json.loads(f.read())
     max_pages = config['max']
     crawl = config['crawl']
     use_sitemap = config['sitemap']
+    
+    # Sets up the sighandle function so that it will capture exit signals.
     signal.signal(signal.SIGINT, sighandle)
+
+    # Run the program.
     main()
