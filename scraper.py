@@ -216,7 +216,7 @@ def check_whitelist(url):
     return check_matches_config('whitelist',url)
 
 def check_standard(url):
-    '''Check if url is in scope domain, is not in blacklist or is 
+    '''Checks if url is in scope domain, is not in blacklist or is 
         in included in whitelist.
         Returns a bool.'''
     
@@ -433,7 +433,8 @@ def test_url(url):
     # Create a Page object
     page = Page(current_url)
 
-    page.title = driver.title
+    if config["columns"]["title"]:
+        page.title = driver.title
 
     # Handle redirects.
     if current_url != url:
@@ -523,29 +524,29 @@ def test_url(url):
 
         for link in links:
             try:
-                url = link.get_attribute("href")
+                link_url = link.get_attribute("href")
                 
                 # "href" not found.
-                if url == None:
+                if link_url == None:
                     continue
 
                 # Not an absolute link 
-                if "://" not in url:
+                if "://" not in link_url:
                     continue
 
                 # Empty string
-                if url.strip() == "":
+                if link_url.strip() == "":
                     continue
 
-                normalized_url = normalize_url(url)
+                normalized_url = normalize_url(link_url)
 
-                page.add_link(url)
+                page.add_link(link_url)
 
                 # Confirm url is not in queue to visit or already visited
                 # and perform standard validation check.
                 if (normalized_url not in urls_to_visit 
-                    and get_page_visited(url)== None 
-                    and check_standard(url)):
+                    and get_page_visited(link_url)== None 
+                    and check_standard(link_url)):
                     
                     # Check for file extensions.
                     if not any(substring in normalized_url for substring in 
@@ -565,10 +566,11 @@ def test_url(url):
     
     
     # Set Page cookies from driver cookies.
-    page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
+    if config['columns']['cookies']:
+        page.cookies = [cookie['name'] for cookie in driver.get_cookies()]
 
     # Check if tracking_ids was selected
-    if(config['columns']['tracking_ids']):
+    if config['columns']['tracking_ids']:
 
         logs = driver.get_log("performance")
         events = process_browser_logs_for_network_events(logs)
@@ -596,7 +598,7 @@ def test_url(url):
                 if "googletagmanager.com/gtag/js" in url:
                     page.add_tracking_id(query_params['id'][0], "GTAG")
 
-    if(config['columns']['terms'] and not config['use_terms']):
+    if config['columns']['terms'] and not config['use_terms']:
 
         # Search if term exists in page content.
         body = driver.execute_script('return document.body.innerText')
@@ -607,15 +609,16 @@ def test_url(url):
         # Use check_matches to find if any term in file matches page content.
         page.terms = (check_terms(body))+0
 
-    '''
-        domContentLoadedEventEnd IS DEPRECATED
-    '''
-    # this load time isn't used for anything, i just threw it in at some point.
-    # it's worth double checking at some point
-    # this SO answer gives a good overview of what checkpoints are logged in the page loading https://stackoverflow.com/a/14878493
-    # if(config['columns']['load_time']):
-    #     page.load_time = driver.execute_script(
-    #     "return window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart")
+
+    # Get the Load time of the current page with this script
+    if config['columns']['load_time']:
+        page.load_time = driver.execute_script(
+        '''var entries = window.performance.getEntriesByType("navigation");
+            if (entries.length > 0) {
+	            var navTiming = entries[0];
+	            var pageLoadTime = navTiming.loadEventEnd - navTiming.startTime;
+	            return Math.round((pageLoadTime / 1000) * 100) / 100;
+                }''')
 
 def start_driver():
     ''' Set up configurations for the selenium driver.'''
@@ -720,7 +723,13 @@ def get_pages():
 
 def main():
     ''' Run the entire program in order'''
-
+   
+    # This is placed to keep track of how long it took to scrape everythin 
+    # and the total scraping time.
+    global time_per_scrape
+    global program_start
+    program_start = datetime.now()
+    time_per_scrape = []
 
     # Don't let the computer sleep while the script runs. 
     # If the computer sleeps, the crawl breaks
@@ -731,6 +740,7 @@ def main():
 
     urls_to_visit = []
     pages_visited = []
+
 
     # Set up Selenium Driver.
     start_driver()
@@ -744,7 +754,13 @@ def main():
         url = urls_to_visit.pop()
         count += 1
         try:
+            page_scrape_start = datetime.now()
             test_url(url)
+            page_scrape_end = datetime.now()
+
+            # Store scrape time per page
+            # time_per_scrape[url] = (page_scrape_end - page_scrape_start).total_seconds()
+            time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
         except (Exception) as e:
             print('Error: ',e)
             traceback.print_exc()
@@ -757,6 +773,8 @@ def main():
     
 def finish():
     '''Save the crawl data into a csv file or json file.'''
+    
+    program_end = datetime.now()
 
     date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
 
@@ -773,20 +791,25 @@ def finish():
     original_filename = "recent_site_scan.json"
     
     try:
-
         # Get the date of the most recent scan file and update it's name to 
         # "byuipages {date}" to keep a file naming standard.
-        with open(original_filename, 'r'):
+        with open(original_filename, 'r') as f:
             prev_json = json.load(f)
             old_time_stamp = list(prev_json.keys())[0]
             new_filename = f'byuipages {old_time_stamp}.json'
-            os.rename(original_filename, new_filename)
+        
+        os.rename(original_filename, new_filename)
     except FileNotFoundError:
         pass
 
     # Save as a JSON file.
     with open(original_filename, 'x') as f:
         json.dump(templatejson, f)
+
+    avg = round(sum(time_per_scrape)/len(time_per_scrape), 2)
+    total_time = round((program_end - program_start).total_seconds(), 2)
+    with open('scraper_stats.txt', 'a') as stats:
+        stats.write(f'\nDate: {date}, Average Time Per Page: {avg}, Total time: {total_time}, Total amount of pages: {max_pages}')
 
     driver.quit()
     unset_keepawake()
