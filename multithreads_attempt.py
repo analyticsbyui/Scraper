@@ -23,8 +23,14 @@ from wakepy import set_keepawake, unset_keepawake
 import re
 import traceback
 import os
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
+
 # config variables
 max_pages = 10
+thread_size=40
+last_total=0
+lot_size=0
 '''
 aliases = True #The scraper will not be efficient without comparing aliases. Aliases modes maybe?
 error_code = True #Very few cases almost not used.
@@ -53,43 +59,6 @@ def add_identifier_to_url(url):
         return url + "?analyticsIntegrationVerificationBot"
     
 blacklist=None
-def check_blacklist_old(url):
-    global blacklist
-    global config
-    #print(config['blacklist'])
-    if (blacklist==None):
-        blacklist={'str':[],'re':[]}
-        with open(config['blacklist']) as file:
-            #print('m')
-            for line in file:
-                #print('a',line)
-                line=line.replace('\n','')
-                line=line.replace('\r','')
-                if line[0]=='/':
-                    if line[-1]=='/':
-                        #blacklist['re'].append(re.compile(line))
-                        #print('compile')
-                        blacklist['re'].append(line[1:-1])
-                    else:
-                        #Warning for know just added it
-                        blacklist['str'].append(line)
-                else:
-                    blacklist['str'].append(line)
-        print(blacklist)
-    for q in blacklist['str']:
-        if q in url:
-            if(config['use_blacklist_output']):
-                with open(config['blacklist_output'],'a') as f:
-                    print(url,file=f)
-            return False
-    for q in blacklist['re']:
-        if re.search(q,url)!=None:
-            if(config['use_blacklist_output']):
-                with open(config['blacklist_output'],'a') as f:
-                    print(url,file=f)
-            return False
-    return True
-
 
 def init_matches(path):
     ''' Opens a file and creates cases for a string search or 
@@ -271,7 +240,9 @@ def get_page_visited(url):
 
     # Get the first page that matches the provided url or has the url as alias.
     # If not found return None.
-    return next((page for page in pages_visited if page.get_url() == url or url in page.get_aliases()), None)
+    return next((page for page in pages_visited 
+                 if page.get_url() == url or 
+                 url in page.get_aliases()), None)
 
 def process_browser_logs_for_network_events(logs):
     '''Filters network requests from browser logs.
@@ -408,10 +379,12 @@ def page_loaded(driver):
         # Confirm that document has loaded.
         return driver.execute_script("return document.readyState") == "complete" 
 
-def test_url(url):
+def test_url(url, driver):
     '''Main logic for crawling a webpage.'''
-
+    global count
     global config
+    global urls_to_visit
+
     print(url)
 
     # Add identifier for potential analytic purposes.
@@ -555,7 +528,8 @@ def test_url(url):
                             [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", 
                             ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                         
-                        urls_to_visit.append(normalized_url)
+                        # urls_to_visit_list.append(normalized_url)
+                        urls_to_visit.add(normalized_url)
                     elif config['files']:
                         '''
                             CHECK WITH JOSUE TO SEE WHAT IS EXPECTED WHEN  "FILES" IS SELECTED
@@ -622,11 +596,12 @@ def test_url(url):
 	            var pageLoadTime = navTiming.loadEventEnd - navTiming.startTime;
 	            return Math.round((pageLoadTime / 1000) * 100) / 100;
                 }''')
+        
+    
+        
 
-def start_driver():
+def start_driver(config):
     ''' Set up configurations for the selenium driver.'''
-    global driver
-    global config
 
     # This block sets up selenium settings.
     ############################################################################
@@ -654,8 +629,9 @@ def start_driver():
 
     # Run headless so that the chrome window stays hidden.
     chrome_options.add_argument("--enable-javascript")
-    if(not config['catalog']):
-        chrome_options.add_argument("--headless")
+    # chrome_options.add_argument("--headless")
+    # if(not config['catalog']):
+    #     chrome_options.add_argument("--headless")
 
     # Eager loading lets the program continue after the html is loaded, but 
     # before everthing else has finished loading we use this so we can crawl the
@@ -668,11 +644,13 @@ def start_driver():
     # chromedrivermanager automatically installs and manages it for us.
     driver = webdriver.Chrome(service=service, options=chrome_options)
     ############################################################################
+    return driver
+
 
 def get_pages():
     '''Add first pages to the queue based on the configurations of the program.
         This method only runs at the start of the program.'''
-    global urls_to_visit
+    global urls_to_visit_list
     global config
 
     # Get URL's from the sitemap.
@@ -698,7 +676,7 @@ def get_pages():
                             if (check_standard(page_url)):
                                 page.add_link(page_url)
                                 page.is_file = 1
-                                urls_to_visit.append(page_url)
+                                urls_to_visit.add(page_url)
         else:
 
             # Attatch error code to page.
@@ -709,7 +687,7 @@ def get_pages():
         with open(config['links'], "r") as file:
            for line in file:
                page_url = normalize_url(line.strip())
-               urls_to_visit.append(page_url)
+               urls_to_visit.add(page_url)
 
     if(config['catalog']):
         
@@ -721,57 +699,121 @@ def get_pages():
 
         # Create a complete URL with the page address and add to queue.
         for page in navigation:
-            urls_to_visit.append('https://www.byui.edu/catalog/#' + page['to'])
+            urls_to_visit.add('https://www.byui.edu/catalog/#' + page['to'])
+
+
+def scrape_page(url):
+    '''Function to scrape a single page.'''
+    # Set up Selenium Driver.
+    global drivers
+    global count
+
+    count +=1
+    if count > max_pages:
+        return
+    
+    driver = start_driver(config)
+    drivers.append(driver)
+    # if count >= max_pages-thread_size and last_total+lot_size>=max_pages:
+    #     driver.quit()
+    #     return
+    urls_to_visit.remove(url)
+    try:
+        page_scrape_start = datetime.now()
+        test_url(url, driver)
+        page_scrape_end = datetime.now()
+
+        # Store scrape time per page
+        time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
+        driver.quit()
+    except Exception as e:
+        print(f'Error scraping {url}: {e} \n')
+        driver.quit()
 
 def main():
-    ''' Run the entire program in order'''
-   
+    ''' Run the entire program with multiprocessing.'''
+    global config
     # This is placed to keep track of how long it took to scrape everythin 
     # and the total scraping time.
     global time_per_scrape
     global program_start
+    global last_total
+    global lot_size
     program_start = datetime.now()
     time_per_scrape = []
 
     # Don't let the computer sleep while the script runs. 
     # If the computer sleeps, the crawl breaks
-    set_keepawake(keep_screen_awake=False)
+    # set_keepawake(keep_screen_awake=False)
     global driver
-    global urls_to_visit
     global pages_visited
+    global urls_to_visit
 
-    urls_to_visit = []
+    global count
+
+    count = 0
+
+    urls_to_visit = set()
     pages_visited = []
 
-
-    # Set up Selenium Driver.
-    start_driver()
+    # # Set up Selenium Driver.
+    # start_driver()
+    
 
     # Create initial list of pages to visit.
     get_pages()
 
-    # Crawl each page in the list
-    count = 0
-    while len(urls_to_visit) > 0 and count < max_pages:
-        url = urls_to_visit.pop()
-        count += 1
-        try:
-            page_scrape_start = datetime.now()
-            test_url(url)
-            page_scrape_end = datetime.now()
 
-            # Store scrape time per page
-            # time_per_scrape[url] = (page_scrape_end - page_scrape_start).total_seconds()
-            time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
-        except (Exception) as e:
-            print('Error: ',e)
-            traceback.print_exc()
+    # Use ThreadPoolExecutor to scrape pages in parallel.
+    # with ThreadPoolExecutor(14) as executor:
+    #     while urls_to_visit and count < max_pages:
+    #         last_total=count
+    #         lot_size=len(urls_to_visit)
+            # print('Lote: ',lot_size)
+    #         it=executor.map(scrape_page, urls_to_visit)
+    #         for qweasd in it:
+                # print('Hechas: ', count)
+                # print('Registradas: ', len(pages_visited))
+    #             if count >= max_pages:#-thread_size and last_total+lot_size>=max_pages:
+                    # print('esto no pasa')
+    #                 executor.shutdown(wait=False, cancel_futures=True)
+    #                 #count+=thread_size
+    #                 break
 
-        print("Sites left: " + str(len(urls_to_visit)),
-              "Visited: " + str(count))
+        # print('new Page')
+    
 
-    # Store data collected          
-    #finish()
+
+    while urls_to_visit and count < max_pages:
+
+        pages_left = max_pages - count
+        print(f"Sites left: {pages_left} \n")
+        if len(urls_to_visit) > pages_left:
+            batch_urls = list(urls_to_visit)[0:pages_left]
+        else: 
+            batch_urls = urls_to_visit
+        print('\n\n \t Created a new executor \n\n')
+        with ThreadPoolExecutor(thread_size) as executor:
+                last_total=count
+                lot_size=len(urls_to_visit)
+                print('Lote: ',lot_size)
+                it=executor.map(scrape_page, batch_urls)
+                
+
+        print('Hechas: ', count)
+        print('Registradas: ', len(pages_visited))
+
+        executor.shutdown(wait=False, cancel_futures=True)
+        print('\n\n \t killed exxcutor \n\n')
+
+
+
+
+
+    # Store data collected
+    finish()
+
+drivers=[]
     
 def finish():
     '''Save the crawl data into a csv file or json file.'''
@@ -779,10 +821,6 @@ def finish():
     program_end = datetime.now()
 
     date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
-
-    # Save as a CSV file.
-    # df = pd.DataFrame.from_records([page.as_dict() for page in pages_visited])
-    # df.to_csv(f"byuipages {date}.csv")
 
     data = [page.as_dict() for page in pages_visited]
     
@@ -812,10 +850,14 @@ def finish():
     max_time = max(time_per_scrape)
     total_time = round((program_end - program_start).total_seconds(), 2)
     with open('scraper_stats.txt', 'a') as stats:
-        stats.write(f'\nDate: {date}, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time}, Total amount of pages: {max_pages}')
+        stats.write(f'\nDate: {date}, MULTYPROCESSING ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time}, Total amount of pages: {len(pages_visited)}')
 
-    driver.quit()
-    unset_keepawake()
+    print('total pages visited: ', len(pages_visited))
+    print('total pages left: ', len(urls_to_visit))
+    # driver.quit()
+    # for d in drivers:
+    #     d.quit()
+    # unset_keepawake()
     sys.exit(0)
 
 def sighandle(sig, frame):
@@ -839,3 +881,4 @@ if __name__ == "__main__":
 
     # Run the program.
     main()
+

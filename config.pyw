@@ -205,6 +205,7 @@ class ConfigScraper:
             'date_crawled':{'disabled':False,'state':False},
             'cookies':{'disabled':False,'state':False},
             'links':{'disabled':False,'state':False},
+            'external_links':{'disabled': False, 'state': True},
             'title':{'disabled':False,'state':False},
             'is_file':{'disabled':True,'state':False}
         }
@@ -217,6 +218,8 @@ class ConfigScraper:
             self[column+'_auto_check']=cb
             if self.columns[column]['disabled']:
                 cb.config(state='disabled')
+            if column == 'links':
+                cb.config(command=self.change_external_links_check_state)
             line+=1
 
         #ttk.Label(mainframe, text="Terms: ").grid(column=0, row=line,sticky=W)
@@ -239,6 +242,16 @@ class ConfigScraper:
         self.cb=ttk.Checkbutton(mainframe, text="Terms: ", variable=self.terms_s, command=self.change_terms_state)
         self.cb.grid(row=line,column=0,sticky=W)
         self.cb.state(['!disabled'])
+
+        # line+=1
+
+        # self.external_links = IntVar()
+        # external_links=self.external_links
+        # external_links.set(1)
+        # external_links_check = ttk.Checkbutton(mainframe, text='external_links', variable=external_links, command=self.change_external_links_check_state)
+        # external_links_check.grid(row=line,sticky=W)
+        # external_links_check.config(state='disabled')
+        # external_links.set(0)
 
 
         for child in mainframe.winfo_children(): 
@@ -348,6 +361,11 @@ class ConfigScraper:
             self.is_file_auto_check.state(['!disabled'])
         else:
             self.is_file_auto_check.state(['disabled'])
+    def change_external_links_check_state(self):
+        if(self['links'].get()):
+            self['external_links'+ '_auto_check'].config(state='normal')
+        else:
+            self['external_links'+ '_auto_check'].config(state='disabled')
     def open_file(self):
         self.link_file.set(filedialog.askopenfilename())
     def open_file_blacklist(self):

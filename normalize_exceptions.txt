@@ -1,1 +1,2 @@
-/\.byui\.edu\/catalog/
+/\.byui\.edu\/catalog/#/
+/\.byui\.edu/
