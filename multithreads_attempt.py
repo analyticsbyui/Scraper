@@ -25,6 +25,7 @@ import traceback
 import os
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
+import threading
 
 # config variables
 max_pages = 10
@@ -385,7 +386,7 @@ def test_url(url, driver):
     global config
     global urls_to_visit
 
-    print(url)
+    # print(f'\n\t{url}')
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
@@ -413,7 +414,7 @@ def test_url(url, driver):
     if current_url != url:
         
         # A mismatching url when page loads probably means we were redirected.
-        print("url mismatch. redirected?")
+        # print("url mismatch. redirected?")
 
         # Check if current_url is in queue to visit.
         if current_url in urls_to_visit:
@@ -427,7 +428,7 @@ def test_url(url, driver):
 
             # Set page's url as alias for visited page.
             page_visited.add_alias(url)
-            print("Page Already visited")
+            # print("Page Already visited")
             return
         else:
 
@@ -436,10 +437,13 @@ def test_url(url, driver):
 
     pages_visited.append(page)
 
+    print(f'\n\t{os.getpid()}\n')
+    print(f'\n \tCurrent page visited count {len(pages_visited)}')
+
     # Search for chrome error in Single Page Applications.
     try:
         elem = driver.find_element(By.ID, "error-information-popup-content")
-        print(elem.find_element(By.CLASS_NAME, "error-code").text)
+        # print(elem.find_element(By.CLASS_NAME, "error-code").text)
         page.error_code = elem.find_element(By.CLASS_NAME, "error-code").text
 
         # Error found. No need to continue.
@@ -450,13 +454,13 @@ def test_url(url, driver):
     # Chrome returns empty page source if page is not found 
     # while running headless.
     if "<body></body>" in driver.page_source:
-        print("body empty")
+        # print("body empty")
         page.error_code = "404"
         #return
 
     # Check page title for 404.
     if "404" in driver.title:
-        print("404")
+        # print("404")
         page.error_code = "404"
 
         ## Page not found, no need to continue.
@@ -465,9 +469,9 @@ def test_url(url, driver):
     # Check page status for error status codes.
     try:
         resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-        print(resp)
+        
         if "404" == resp.status_code:
-            print(resp.status_code)
+            # print(resp.status_code)
             page.error_code = resp.status_code
 
             ## Page not found, no need to continue.
@@ -487,7 +491,7 @@ def test_url(url, driver):
         const callback = (mutationList, observer) => {lastTime=(new Date()).getTime();};
         const observer = new MutationObserver(callback);observer.observe(targetNode, config);
                           ''')
-    WebDriverWait(driver, timeout=10).until(page_loaded)
+    WebDriverWait(driver, timeout=30).until(page_loaded)
     # #driver.save_screenshot(str(len(pages_visited))+'.png')
     
     if config['crawl']:
@@ -631,7 +635,7 @@ def start_driver(config):
     chrome_options.add_argument("--enable-javascript")
     # chrome_options.add_argument("--headless")
     # if(not config['catalog']):
-    #     chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")
 
     # Eager loading lets the program continue after the html is loaded, but 
     # before everthing else has finished loading we use this so we can crawl the
@@ -705,19 +709,17 @@ def get_pages():
 def scrape_page(url):
     '''Function to scrape a single page.'''
     # Set up Selenium Driver.
-    global drivers
     global count
 
     count +=1
     if count > max_pages:
         return
     
+    # Set up Selenium Driver
     driver = start_driver(config)
-    drivers.append(driver)
-    # if count >= max_pages-thread_size and last_total+lot_size>=max_pages:
-    #     driver.quit()
-    #     return
+
     urls_to_visit.remove(url)
+
     try:
         page_scrape_start = datetime.now()
         test_url(url, driver)
@@ -727,13 +729,14 @@ def scrape_page(url):
         time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
         driver.quit()
     except Exception as e:
-        print(f'Error scraping {url}: {e} \n')
+        # print(f'Error scraping {url}: {e} \n')
+        print(traceback.print_exc())
         driver.quit()
 
 def main():
-    ''' Run the entire program with multiprocessing.'''
+    ''' Run the entire program with multithreading.'''
     global config
-    # This is placed to keep track of how long it took to scrape everythin 
+    # This is placed to keep track of how long it took to scrape everything 
     # and the total scraping time.
     global time_per_scrape
     global program_start
@@ -744,8 +747,7 @@ def main():
 
     # Don't let the computer sleep while the script runs. 
     # If the computer sleeps, the crawl breaks
-    # set_keepawake(keep_screen_awake=False)
-    global driver
+    set_keepawake(keep_screen_awake=False)
     global pages_visited
     global urls_to_visit
 
@@ -756,59 +758,41 @@ def main():
     urls_to_visit = set()
     pages_visited = []
 
-    # # Set up Selenium Driver.
-    # start_driver()
-    
-
     # Create initial list of pages to visit.
     get_pages()
-
-
-    # Use ThreadPoolExecutor to scrape pages in parallel.
-    # with ThreadPoolExecutor(14) as executor:
-    #     while urls_to_visit and count < max_pages:
-    #         last_total=count
-    #         lot_size=len(urls_to_visit)
-            # print('Lote: ',lot_size)
-    #         it=executor.map(scrape_page, urls_to_visit)
-    #         for qweasd in it:
-                # print('Hechas: ', count)
-                # print('Registradas: ', len(pages_visited))
-    #             if count >= max_pages:#-thread_size and last_total+lot_size>=max_pages:
-                    # print('esto no pasa')
-    #                 executor.shutdown(wait=False, cancel_futures=True)
-    #                 #count+=thread_size
-    #                 break
-
-        # print('new Page')
     
-
-
+    # Continue until we have reached our limit or we run out of links in the set.
     while urls_to_visit and count < max_pages:
 
+        # Pages till we have reached our limit.
         pages_left = max_pages - count
         print(f"Sites left: {pages_left} \n")
+
+        # Check if we have more urls than our limit allows us to go through.
         if len(urls_to_visit) > pages_left:
+            
+            # Create a sublist of the # of urls we need to get to our limit.
             batch_urls = list(urls_to_visit)[0:pages_left]
+
         else: 
             batch_urls = urls_to_visit
-        print('\n\n \t Created a new executor \n\n')
-        with ThreadPoolExecutor(thread_size) as executor:
-                last_total=count
-                lot_size=len(urls_to_visit)
-                print('Lote: ',lot_size)
-                it=executor.map(scrape_page, batch_urls)
-                
 
-        print('Hechas: ', count)
-        print('Registradas: ', len(pages_visited))
+
+        print('\n\n \t Created a new executor \n\n')
+
+        with ThreadPoolExecutor(thread_size) as executor:
+            last_total=count
+            lot_size=len(urls_to_visit)
+            print('length of urls_to_visit: ',lot_size)
+            executor.map(scrape_page, batch_urls)
+            print(threading.active_count()) 
+
+        print('Scrapes iniciados: ', count)
+        print('Paginas Registradas: ', len(pages_visited))
 
         executor.shutdown(wait=False, cancel_futures=True)
-        print('\n\n \t killed exxcutor \n\n')
-
-
-
-
+        print('\n\n \t killed executor \n\n')
+        
 
     # Store data collected
     finish()
@@ -816,7 +800,7 @@ def main():
 drivers=[]
     
 def finish():
-    '''Save the crawl data into a csv file or json file.'''
+    '''Save the crawl data into a json file and report stats.'''
     
     program_end = datetime.now()
 
@@ -846,19 +830,19 @@ def finish():
     with open(original_filename, 'x') as f:
         json.dump(templatejson, f)
 
+    print('\t GETTING STATS \n')
+
     avg = round(sum(time_per_scrape)/len(time_per_scrape), 2)
     max_time = max(time_per_scrape)
     total_time = round((program_end - program_start).total_seconds(), 2)
     with open('scraper_stats.txt', 'a') as stats:
-        stats.write(f'\nDate: {date}, MULTYPROCESSING ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time}, Total amount of pages: {len(pages_visited)}')
+        stats.write(f'\nDate: {date}, MULTiTHREADING ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(pages_visited)}, Pages Requessted {max_pages}')
 
     print('total pages visited: ', len(pages_visited))
-    print('total pages left: ', len(urls_to_visit))
-    # driver.quit()
-    # for d in drivers:
-    #     d.quit()
-    # unset_keepawake()
-    sys.exit(0)
+    print('total pages in urls_to_visit: ', len(urls_to_visit))
+    unset_keepawake()
+    print('\n Next step is os._exit ')
+    os._exit(0)
 
 def sighandle(sig, frame):
     '''Run the finish function if the program is closed early for some reason'''
@@ -876,9 +860,8 @@ if __name__ == "__main__":
         config = json.loads(f.read())
     max_pages = config['max']
     
-    # Sets up the sighandle function so that it will capture exit signals.
+    # Sets up the sighandle function to capture exit signals.
     signal.signal(signal.SIGINT, sighandle)
 
     # Run the program.
     main()
-
