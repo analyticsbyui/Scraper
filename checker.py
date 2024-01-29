@@ -166,9 +166,9 @@ tag = r"(\?|\&)analyticsIntegrationVerificationBot"
 
 def check_identifier(url):
     '''Look for identifier and replace.'''
-    
+
     # Replace our identifier if it exists in the link.
     if re.search(tag, url) != None:
         url = re.sub(tag, "", url)
 
-    return url
+    return url  

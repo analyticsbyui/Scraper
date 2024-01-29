@@ -549,7 +549,7 @@ def test_url(url):
                 link_url = link.get_attribute("href")
                 
                 # Replace our identifier if it exists in the link.
-                link_url = check_identifier(link_url)
+                link_url = check_identifier(link_url)  
 
                 # "href" not found.
                 if link_url == None:

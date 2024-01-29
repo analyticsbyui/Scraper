@@ -240,9 +240,9 @@ def check_identifier(url):
     
     # Replace our identifier if it exists in the link.
     if re.search(tag, url) != None:
-        url = re.sub(tag, "", url)
+        url = re.sub(tag, "", url) 
 
-    return url
+    return url 
 
 def get_page_visited(url):
     ''' Gets a Page object from the pages_visited list.

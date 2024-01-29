@@ -115,7 +115,7 @@ class Tester():
         current_url = checker.normalize_url(current_url)
     
         # Replace our identifier if it exists in the link.
-        current_url = checker.check_identifier(current_url)
+        current_url = checker.check_identifier(current_url)  
 
         # Create a Page object
         page = Page(current_url)
