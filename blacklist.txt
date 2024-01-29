@@ -1,3 +1,4 @@
+abish.byui.edu
 adam.byui.edu
 archives.byui.edu
 brightspotcdn.byui.edu
@@ -18,6 +19,7 @@ event.byui.edu
 feithweb.byui.edu
 gsuitetest.byui.edu
 honors.fye.byu.edu
+hip.byui.edu
 ibelong.byui.edu
 inet.byui.edu
 ingeniux.byui.edu
@@ -26,11 +28,13 @@ international.byui.edu
 iplan.byui.edu
 iprepare.byui.edu
 learningandteaching.byui.edu
+lib.byui.edu
 libanswers.byui.edu
 libguides.byui.edu
 login.microsoftonline.com
 m.byui.edu
 maclab.byui.edu
+mailto
 philanthropies.churchofjesuschrist.org
 photo.byui.edu
 press.byui.edu
@@ -45,10 +49,15 @@ spc.byui.edu
 spencer.byui.edu
 stream.byui.edu
 streaming.byui.edu
+twitter.com
 vdi.byui.edu
+web.byui.edu/catalog/2005-2006
+web.byui.edu/catalog/2004-2005  
 webprint.byui.edu
 webtma.byui.edu
+www2.byiu.edu
 www.byuicomm.net
+www.byupathway.edu
 www.byupathway.org
 www.churchofjesuschrist.org
 www.goarmy.com

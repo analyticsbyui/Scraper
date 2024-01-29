@@ -233,6 +233,17 @@ def normalize_url(url):
         # Return formated url.
         return "https://" + url.lower()
 
+tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+
+def check_identifier(url):
+    '''Look for identifier and replace.'''
+    
+    # Replace our identifier if it exists in the link.
+    if re.search(tag, url) != None:
+        url = re.sub(tag, "", url)
+
+    return url
+
 def get_page_visited(url):
     ''' Gets a Page object from the pages_visited list.
         Returns a Page.'''
@@ -386,7 +397,7 @@ def test_url(url, driver):
     global config
     global urls_to_visit
 
-    # print(f'\n\t{url}')
+    print(f'\n\t{url}')
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
@@ -407,6 +418,7 @@ def test_url(url, driver):
     # Fromat current url to standard.
     current_url = normalize_url(driver.current_url)
 
+    current_url = check_identifier(current_url)
     # Create a Page object
     page = Page(current_url)
 
@@ -502,6 +514,9 @@ def test_url(url, driver):
         for link in links:
             try:
                 link_url = link.get_attribute("href")
+
+                # Replace our identifier if it exists in the link.
+                link_url = check_identifier(link_url)
                 
                 # "href" not found.
                 if link_url == None:
@@ -810,9 +825,12 @@ def finish():
     
     templatejson ={date: data}
 
+    if not os.path.exists('results'):
+        os.makedirs('results')
+
     # For an easier interpreteation of data every new scan will be
     # called the "recent_site_scan".
-    original_filename = "recent_site_scan.json"
+    original_filename = "results/recent_site_scan.json"
     
     try:
         # Get the date of the most recent scan file and update it's name to 
@@ -820,7 +838,7 @@ def finish():
         with open(original_filename, 'r') as f:
             prev_json = json.load(f)
             old_time_stamp = list(prev_json.keys())[0]
-            new_filename = f'byuipages {old_time_stamp}.json'
+            new_filename = f'results/byuipages {old_time_stamp}.json'
         
         os.rename(original_filename, new_filename)
     except FileNotFoundError:
