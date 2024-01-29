@@ -90,6 +90,8 @@ class Tester():
 
         # Add identifier for potential analytic purposes.
         page_url_with_identifier = self.add_identifier_to_url(url)
+        tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+
 
         # Load the page.
         try:

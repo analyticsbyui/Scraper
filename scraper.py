@@ -427,6 +427,7 @@ def test_url(url):
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
+    tag = r"(\?|\&|\#)analyticsIntegrationVerificationBot"
 
     # Load the page.
     try:

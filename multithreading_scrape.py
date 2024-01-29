@@ -401,6 +401,7 @@ def test_url(url, driver):
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
+    tag = r"(\?|\&)analyticsIntegrationVerificationBot"
 
     # Load the page.
     try:
@@ -417,8 +418,9 @@ def test_url(url, driver):
 
     # Fromat current url to standard.
     current_url = normalize_url(driver.current_url)
-
+    
     current_url = check_identifier(current_url)
+
     # Create a Page object
     page = Page(current_url)
 
