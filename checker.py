@@ -43,7 +43,7 @@ normalize_excuses = init_matches('normalize_exceptions.txt')
 def check_matches(cases,text,callback=None):
     ''' Check for matches between a set of cases and a given text.
         Callback is only passed when this function is originally called
-        by self.check_blacklist
+        by check_blacklist
         Returns a bool.'''
         
     found = True
@@ -76,14 +76,14 @@ def check_matches(cases,text,callback=None):
 
 def check_matches_config(cases_name,text,callback=None):
     '''Wrapper Function:
-        This function is made to call self.check_matches with the right params based 
+        This function is made to call check_matches with the right params based 
         on the caller of this function (e.g. whitelist or blacklist checker).
         Returns a bool.'''
     
     # Call function to create cases.
     cases= init_matches(config[cases_name])
 
-    # Call self.main check function, return its result.
+    # Call main check function, return its result.
     return check_matches(cases,text,callback)
 
 def check_blacklist_callback(url):
@@ -120,7 +120,7 @@ def check_whitelist(url):
     return check_matches_config('whitelist',url)
 
 def check_standard(url):
-    '''Checks if url is in scope doself.main, is not in blacklist or is 
+    '''Checks if url is in scope domain, is not in blacklist or is 
         in included in whitelist.
         Returns a bool.'''
     
@@ -140,7 +140,7 @@ def check_normalize( url):
     '''Checks if the given url has the standard structure for a byui url page.
         Returns a bool.'''
 
-    # Call self.main check function, return its result.
+    # Call main check function, return its result.
     return check_matches(normalize_excuses, url)
 
 def normalize_url( url):

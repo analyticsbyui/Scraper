@@ -161,7 +161,7 @@ def check_matches(cases,text,callback=None):
 def check_matches_config(cases_name,text,callback=None):
     '''Wrapper Function:
         This function is made to call check_matches with the right params based 
-        on the caller of this function (e.g. whitelist or blacklist checker).
+        on the caller of this function (e.g. whitelist or blacklist .
         Returns a bool.'''
     
     # This line was used to get the cases from global variables, it would involve setting
@@ -416,6 +416,7 @@ def test_url(url):
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
+    tag = r"(\?|\&|\#)analyticsIntegrationVerificationBot"
 
     # Load the page.
     try:
@@ -430,8 +431,17 @@ def test_url(url):
         print("super broken", e)
         return
 
+    current_url = driver.current_url
+    
+    # Check if current_url has scope domain and is not
+    # in the blacklist.
+    if not check_standard(current_url):
+        return
+    
     # Fromat current url to standard.
     current_url = normalize_url(driver.current_url)
+
+    current_url = re.sub(tag, "", current_url)
 
     # Create a Page object
     page = Page(current_url)
@@ -462,6 +472,8 @@ def test_url(url):
             page.add_alias(url)
 
     pages_visited.append(page)
+
+    print(f'\n \tCurrent page visited count {len(pages_visited)}')
 
     # Search for chrome error in Single Page Applications.
     try:
@@ -513,8 +525,8 @@ def test_url(url):
         const targetNode = document.body;
         const callback = (mutationList, observer) => {lastTime=(new Date()).getTime();};
         const observer = new MutationObserver(callback);observer.observe(targetNode, config);
-                          ''')
-    WebDriverWait(driver, timeout=10).until(page_loaded)
+                            ''')
+    WebDriverWait(driver, timeout=30).until(page_loaded)
     # #driver.save_screenshot(str(len(pages_visited))+'.png')
     
     if config['crawl']:
@@ -526,6 +538,10 @@ def test_url(url):
             try:
                 link_url = link.get_attribute("href")
                 
+                # Replace our identifier if it exists in the link.
+                if re.search(tag, link_url) != None:
+                    link_url = re.sub(tag, "", link_url)
+
                 # "href" not found.
                 if link_url == None:
                     continue
@@ -618,9 +634,9 @@ def test_url(url):
         page.load_time = driver.execute_script(
         '''var entries = window.performance.getEntriesByType("navigation");
             if (entries.length > 0) {
-	            var navTiming = entries[0];
-	            var pageLoadTime = navTiming.loadEventEnd - navTiming.startTime;
-	            return Math.round((pageLoadTime / 1000) * 100) / 100;
+                var navTiming = entries[0];
+                var pageLoadTime = navTiming.loadEventEnd - navTiming.startTime;
+                return Math.round((pageLoadTime / 1000) * 100) / 100;
                 }''')
 
 def start_driver():
@@ -654,8 +670,8 @@ def start_driver():
 
     # Run headless so that the chrome window stays hidden.
     chrome_options.add_argument("--enable-javascript")
-    if(not config['catalog']):
-        chrome_options.add_argument("--headless")
+    # if(not config['catalog']):
+    #     chrome_options.add_argument("--headless")
 
     # Eager loading lets the program continue after the html is loaded, but 
     # before everthing else has finished loading we use this so we can crawl the

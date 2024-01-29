@@ -1,22 +1,18 @@
 from datetime import datetime
-from time import sleep
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 import requests
 from xml.etree import ElementTree
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.chrome.service import Service
 import json
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
 import signal
-import sys
-import pandas as pd
+import re
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
@@ -32,9 +28,10 @@ blacklist=None
 
 
 class Tester():
-    def __init__(self, config):
+    def __init__(self, config, date):
         self.config = config
         self.driver = self.start_driver()
+        self.date = date
 
     def add_identifier_to_url(self, url):
         ''' Adds an identifier to the url for potential tracking purposes.
@@ -93,6 +90,8 @@ class Tester():
 
         # Add identifier for potential analytic purposes.
         page_url_with_identifier = self.add_identifier_to_url(url)
+        tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+
 
         # Load the page.
         try:
@@ -107,9 +106,17 @@ class Tester():
             print("super broken", e)
             return
 
-        # Fromat current url to standard.
         current_url = self.driver.current_url
+        
+        # Check if current_url has scope domain and is not
+        # in the blacklist.
+        if not checker.check_standard(current_url):
+            return
+        
+        # Fromat current url to standard.
         current_url = checker.normalize_url(current_url)
+
+        current_url = re.sub(tag, "", current_url)
 
         # Create a Page object
         page = Page(current_url)
@@ -207,6 +214,10 @@ class Tester():
                 try:
                     link_url = link.get_attribute("href")
                     
+                    # Replace our identifier if it exists in the link.
+                    if re.search(tag, link_url) != None:
+                        link_url = re.sub(tag, "", link_url)
+
                     # "href" not found.
                     if link_url == None:
                         continue
@@ -236,7 +247,6 @@ class Tester():
                                 [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", 
                                 ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                             
-                            # urls_to_visit_list.append(normalized_url)
                             urls_to_visit.add(normalized_url)
                         elif self.config['files']:
                             '''
@@ -404,7 +414,7 @@ class Page:
         '''Add aditional links to the has_external_link list'''
         self.has_external_links.append(link)
 
-    def as_dict(self):
+    def as_dict(self, config):
         '''Format Page information into a dictionary for easy storing.'''
 
         global pindex
@@ -428,7 +438,7 @@ class Page:
             "title": self.title,
             "is_file": self.is_file
         }
-        global config
+        
 
         #Iterate through config file to know what columns are expected.
         for column in config['columns']:
@@ -499,7 +509,7 @@ class Scraper():
         self.pages_visited = []
         self.config = config
         self.max_pages = config['max']
-        self.thread_size = 40
+        self.thread_size = config['threads']
         self.time_per_scrape = []
         self.program_start = datetime.now()
         self.program_end = None
@@ -569,7 +579,7 @@ class Scraper():
         if len(sublist) == 0:
             return 
         
-        tester = Tester(self.config)
+        tester = Tester(self.config, self.date)
 
         for url in sublist:
 
@@ -592,8 +602,7 @@ class Scraper():
 
 
     def get_sublists(self, batch_urls):
-        '''Create a list of lists with urls based on the size of 
-            current threads.'''
+        '''Create a list of lists with urls based on the size of threads.'''
 
         # Calculate the size of each sublist.
         sublist_size = (len(batch_urls) + self.thread_size - 1) // self.thread_size
@@ -616,7 +625,7 @@ class Scraper():
 
             # Pages till we have reached our limit.
             pages_left = self.max_pages - self.count
-            print(f"\n \t Sites left: {pages_left} \n")
+            print(f"\n \t Sites left until max: {pages_left} \n")
 
             # Check if we have more urls than our limit allows us to go through.
             if len(self.urls_to_visit) > pages_left:
@@ -630,17 +639,24 @@ class Scraper():
             # Create a new list of lists to give every thread their own list.
             sublists = self.get_sublists(batch_urls)
 
-            print('\n\n \t Created a new executor \n\n')
+            print('\n\n \t Created a new executor \n')
+            print('Sites left in list: ', len(self.urls_to_visit))
+
+            if len(self.urls_to_visit) < 15:
+                print('URLS to visit: ')
+                for url in self.urls_to_visit:
+                    print(url, '\n')
+
 
             with ThreadPoolExecutor(self.thread_size) as executor:
                 executor.map(self.scrape_page, sublists)
 
 
-            print('Scrapes iniciados: ', self.count)
-            print('Paginas Registradas: ', len(self.pages_visited))
+            print('Scrape count: ', self.count)
+            print('Pages visited: ', len(self.pages_visited))
 
             executor.shutdown(wait=False, cancel_futures=True)
-            print('\n\n \t killed executor \n\n')
+            print('\n\n \t Killed executor \n\n')
 
 
         # Store data collected
@@ -653,13 +669,16 @@ class Scraper():
         
         self.program_end = datetime.now()
 
-        data = [page.as_dict() for page in self.pages_visited]
+        data = [page.as_dict(self.config) for page in self.pages_visited]
         
         templatejson ={self.date: data}
 
+        if not os.path.exists('results'):
+            os.makedirs('results')
+
         # For an easier interpreteation of data every new scan will be
         # called the "recent_site_scan".
-        original_filename = "recent_site_scan.json"
+        original_filename = "results/recent_site_scan.json"
         
         try:
             # Get the date of the most recent scan file and update it's name to 
@@ -667,7 +686,7 @@ class Scraper():
             with open(original_filename, 'r') as f:
                 prev_json = json.load(f)
                 old_time_stamp = list(prev_json.keys())[0]
-                new_filename = f'byuipages {old_time_stamp}.json'
+                new_filename = f'results/byuipages {old_time_stamp}.json'
             
             os.rename(original_filename, new_filename)
         except FileNotFoundError:
