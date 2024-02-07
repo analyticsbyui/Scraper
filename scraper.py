@@ -263,13 +263,16 @@ def normalize_url(url):
         # Return formated url.
         return "https://" + url.lower()
 
-tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+#tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+tag = r"analyticsIntegrationVerificationBot"
 
 def check_identifier(url):
     '''Look for identifier and replace.'''
     
     # Replace our identifier if it exists in the link.
-    if re.search(tag, url) != None:
+    if re.search((tag+'&'), url) != None:
+        url = re.sub((tag+'&'), "?", url)
+    elif re.search(tag, url) != None:
         url = re.sub(tag, "", url)
 
     return url
@@ -283,6 +286,14 @@ def get_page_visited(url):
     # Get the first page that matches the provided url or has the url as alias.
     # If not found return None.
     return next((page for page in pages_visited if page.get_url() == url or url in page.get_aliases()), None)
+
+def check_duplicate(url, current_url):
+    if re.search(url, current_url, re.I) != None:
+    
+        return True
+    else:
+  
+        return False
 
 def process_browser_logs_for_network_events(logs):
     '''Filters network requests from browser logs.
@@ -427,7 +438,6 @@ def test_url(url):
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
-    tag = r"(\?|\&|\#)analyticsIntegrationVerificationBot"
 
     # Load the page.
     try:
@@ -435,6 +445,7 @@ def test_url(url):
         driver.delete_all_cookies()
         driver.get(page_url_with_identifier)
     except (MaxRetryError, ConnectionResetError) as e:
+        print(e)
         return
     except (Exception) as e:
 
@@ -447,6 +458,7 @@ def test_url(url):
     # Check if current_url has scope domain and is not
     # in the blacklist.
     if not check_standard(current_url):
+        print('page not in scope domain or in blacklist')
         return
     
     # Fromat current url to standard.
@@ -548,9 +560,6 @@ def test_url(url):
         for link in links:
             try:
                 link_url = link.get_attribute("href")
-                
-                # Replace our identifier if it exists in the link.
-                link_url = check_identifier(link_url)  
 
                 # "href" not found.
                 if link_url == None:
@@ -563,6 +572,9 @@ def test_url(url):
                 # Empty string
                 if link_url.strip() == "":
                     continue
+                
+                # Replace our identifier if it exists in the link.
+                link_url = check_identifier(link_url)  
 
                 normalized_url = normalize_url(link_url)
                 if ("byui.edu" not in normalized_url and config["columns"]['external_links']):
@@ -572,7 +584,8 @@ def test_url(url):
 
                 # Confirm url is not in queue to visit or already visited
                 # and perform standard validation check.
-                if (normalized_url not in urls_to_visit 
+                duplicate = sum(map(lambda url: check_duplicate(normalized_url, url), urls_to_visit))
+                if (duplicate == 0 
                     and get_page_visited(link_url)== None 
                     and check_standard(link_url)):
                     
@@ -581,6 +594,7 @@ def test_url(url):
                             [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", 
                             ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                         
+                        # if "abish.byui.edu/specialCollections" in normalized_url: 
                         urls_to_visit.append(normalized_url)
                     elif config['files']:
                         '''

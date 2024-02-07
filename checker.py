@@ -162,13 +162,24 @@ def normalize_url( url):
         # Return formated url.
         return "https://" + url.lower()
 
-tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+#tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+tag = r"analyticsIntegrationVerificationBot"
 
 def check_identifier(url):
     '''Look for identifier and replace.'''
-
+    
     # Replace our identifier if it exists in the link.
-    if re.search(tag, url) != None:
+    if re.search((tag+'&'), url) != None:
+        url = re.sub((tag+'&'), "?", url)
+    elif re.search(tag, url) != None:
         url = re.sub(tag, "", url)
+        
+    return url
 
-    return url  
+def check_duplicate(url, current_url):
+    if re.search(url, current_url, re.I) != None:
+    
+        return True
+    else:
+  
+        return False

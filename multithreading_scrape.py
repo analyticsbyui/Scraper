@@ -233,17 +233,19 @@ def normalize_url(url):
         # Return formated url.
         return "https://" + url.lower()
 
-tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+#tag = r"(\?|\&)analyticsIntegrationVerificationBot"
+tag = r"analyticsIntegrationVerificationBot"
 
 def check_identifier(url):
     '''Look for identifier and replace.'''
     
     # Replace our identifier if it exists in the link.
-    if re.search(tag, url) != None:
-        url = re.sub(tag, "", url) 
-
-    return url 
-
+    if re.search((tag+'&'), url) != None:
+        url = re.sub((tag+'&'), "?", url)
+    elif re.search(tag, url) != None:
+        url = re.sub(tag, "", url)
+        
+    return url
 def get_page_visited(url):
     ''' Gets a Page object from the pages_visited list.
         Returns a Page.'''
@@ -401,7 +403,6 @@ def test_url(url, driver):
 
     # Add identifier for potential analytic purposes.
     page_url_with_identifier = add_identifier_to_url(url)
-    tag = r"(\?|\&)analyticsIntegrationVerificationBot"
 
     # Load the page.
     try:
@@ -516,9 +517,6 @@ def test_url(url, driver):
         for link in links:
             try:
                 link_url = link.get_attribute("href")
-
-                # Replace our identifier if it exists in the link.
-                link_url = check_identifier(link_url)
                 
                 # "href" not found.
                 if link_url == None:
@@ -531,6 +529,9 @@ def test_url(url, driver):
                 # Empty string
                 if link_url.strip() == "":
                     continue
+
+                # Replace our identifier if it exists in the link.
+                link_url = check_identifier(link_url)
 
                 normalized_url = normalize_url(link_url)
                 if ("byui.edu" not in normalized_url and config["columns"]['external_links']):

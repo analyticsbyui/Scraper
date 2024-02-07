@@ -12,7 +12,7 @@ import json
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
 import signal
-import re
+import sys
 from webdriver_manager.chrome import ChromeDriverManager
 from urllib3.exceptions import MaxRetryError
 from wakepy import set_keepawake, unset_keepawake
@@ -90,8 +90,6 @@ class Tester():
 
         # Add identifier for potential analytic purposes.
         page_url_with_identifier = self.add_identifier_to_url(url)
-        tag = r"(\?|\&)analyticsIntegrationVerificationBot"
-
 
         # Load the page.
         try:
@@ -105,14 +103,17 @@ class Tester():
             # This should ideally never happen.
             print("super broken", e)
             return
-
+        self.count_driver_load()
         current_url = self.driver.current_url
         
         # Check if current_url has scope domain and is not
         # in the blacklist.
         if not checker.check_standard(current_url):
+            self.count_check_standard()
             return
-        
+                    
+        self.count_check_standard()
+
         # Fromat current url to standard.
         current_url = checker.normalize_url(current_url)
     
@@ -121,6 +122,8 @@ class Tester():
 
         # Create a Page object
         page = Page(current_url)
+
+        self.count_page_created()
 
         # Handle redirects.
         if current_url != url:
@@ -141,6 +144,7 @@ class Tester():
                 # Set page's url as alias for visited page.
                 page_visited.add_alias(url)
                 print("Page Already visited")
+                self.count_page_already_visited()
                 return
             else:
 
@@ -148,6 +152,7 @@ class Tester():
                 page.add_alias(url)
 
         pages_visited.append(page)
+        self.count_pages_visited_add()
 
         print(f'\n\t{os.getpid()}\n')
         print(f'\n \tCurrent page visited count {len(pages_visited)}')
@@ -158,6 +163,7 @@ class Tester():
             print(elem.find_element(By.CLASS_NAME, "error-code").text)
             page.error_code = elem.find_element(By.CLASS_NAME, "error-code").text
 
+            self.count_error_found()
             # Error found. No need to continue.
             return
         except:
@@ -191,7 +197,7 @@ class Tester():
         except (Exception) as e:
             pass
 
-
+        self.count_checked_errors()
 
         # Crawl the page for links.
         # Since page load is set to eager, we need to wait until everything else is 
@@ -205,6 +211,8 @@ class Tester():
                                 ''')
         WebDriverWait(self.driver, timeout=30).until(self.page_loaded)
         # #driver.save_screenshot(str(len(pages_visited))+'.png')
+
+        self.count_page_fully_loaded()
         
         if self.config['crawl']:
 
@@ -214,9 +222,6 @@ class Tester():
             for link in links:
                 try:
                     link_url = link.get_attribute("href")
-                    
-                    # Replace our identifier if it exists in the link.
-                    link_url = checker.check_identifier(link_url)
 
                     # "href" not found.
                     if link_url == None:
@@ -230,6 +235,9 @@ class Tester():
                     if link_url.strip() == "":
                         continue
 
+                    # Replace our identifier if it exists in the link.
+                    link_url = checker.check_identifier(link_url)
+
                     normalized_url = checker.normalize_url(link_url)
                     if ("byui.edu" not in normalized_url and self.config["columns"]['external_links']):
                         page.add_external_link(link_url)
@@ -238,7 +246,9 @@ class Tester():
 
                     # Confirm url is not in queue to visit or already visited
                     # and perform standard validation check.
-                    if (normalized_url not in urls_to_visit 
+                    #duplicate = sum(map(lambda url: checker.check_duplicate(normalized_url, url), urls_to_visit))
+                    if (normalized_url.lower() not in urls_to_visit
+                        #and duplicate == 0 
                         and self.get_page_visited(link_url, pages_visited)== None 
                         and checker.check_standard(link_url)):
                         
@@ -247,7 +257,7 @@ class Tester():
                                 [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", 
                                 ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                             
-                            urls_to_visit.add(normalized_url)
+                            urls_to_visit.add(normalized_url.lower())
                         elif self.config['files']:
                             '''
                                 CHECK WITH JOSUE TO SEE WHAT IS EXPECTED WHEN  "FILES" IS SELECTED
@@ -255,14 +265,16 @@ class Tester():
                             pages_visited.append(Page(normalized_url))
                 except StaleElementReferenceException:
                     pass
-
+        self.count_crawled_page()
         
         if self.config["columns"]["title"]:
             page.title = self.driver.title
-        
+        self.count_set_title()
+
         # Set Page cookies from driver cookies.
         if self.config['columns']['cookies']:
             page.cookies = [cookie['name'] for cookie in self.driver.get_cookies()]
+        self.count_set_cookies()
 
         # Check if tracking_ids was selected
         if self.config['columns']['tracking_ids']:
@@ -292,6 +304,7 @@ class Tester():
 
                     if "googletagmanager.com/gtag/js" in url:
                         page.add_tracking_id(query_params['id'][0], "GTAG")
+        self.count_set_tracking_ids()
 
         if self.config['columns']['terms'] and not self.config['use_terms']:
 
@@ -315,6 +328,35 @@ class Tester():
                     return Math.round((pageLoadTime / 1000) * 100) / 100;
                     }''')
             
+        self.finished_scrape()
+
+    def count_driver_load(self):
+        print('Override this method')
+    def count_check_standard(self):
+        print('Override this method')
+    def count_page_created(self):
+        print('Override this method')
+    def count_page_already_visited(self):
+        print('Override this method')
+    def count_pages_visited_add(self):
+        print('Override this method')
+    def count_error_found(self):
+        print('Override this method')
+    def count_checked_errors(self):
+        print('Override this method')
+    def count_page_fully_loaded(self):
+        print('Override this method')
+    def count_crawled_page(self):
+        print('Override this method')
+    def count_set_title(self):
+        print('Override this method')
+    def count_set_cookies(self):
+        print('Override this method')
+    def count_set_tracking_ids(self):
+        print('Override this method')
+    def finished_scrape(self):
+        print('Override this method')
+
     def start_driver(self):
         ''' Set up configurations for the selenium driver.
             Returns a driver.'''
@@ -469,39 +511,82 @@ class Page:
         return str(self.self.as_dict())
 
 class SpyTester(Tester):
-    def __init__(self, config):
-        super().__init__(config)
-        self.test_counter = 0
-        self.start_driver_counter = 0
-        self.identifier_counter = 0
-        self.get_page_visited_counter = 0
-        self.log_events_counter = 0
-        self.page_loaded_counter = 0
-        self.closed_dirver_counter = 0
-        self.current_thread = threading.currentThread().getName()
+    def __init__(self, config, date):
+        super().__init__(config, date)
+        self.counter_test = 0
+        self.counter_start_driver = 0
+        self.counter_identifier = 0
+        self.counter_get_page_visited = 0
+        self.counter_log_events = 0
+        self.counter_page_loaded = 0
+        self.counter_closed_driver = 0
+        self.counter_driver_load = 0
+        self.counter_check_standard = 0
+        self.counter_page_created = 0
+        self.counter_page_already_visited = 0
+        self.counter_added_to_page_visited = 0
+        self.counter_error_found = 0
+        self.counter_cheked_errors = 0
+        self.counter_page_fully_loaded = 0
+        self.counter_crawled_page = 0
+        self.counter_set_title = 0
+        self.counter_set_cookies = 0
+        self.counter_set_tracking_id = 0
+        self.counter_finished_scrape = 0
+        self.current_thread = threading.current_thread().getName()
 
     def add_identifier_to_url(self, url):
-        self.identifier_counter += 1
+        self.counter_identifier += 1
         return super().add_identifier_to_url(url)
     
     def get_page_visited(self, url, pages_visited):
-        self.get_page_visited_counter += 1
+        self.counter_get_page_visited += 1
         return super().get_page_visited(url, pages_visited)
     def process_browser_logs_for_network_events(self, logs):
-        self.log_events_counter += 1
+        self.counter_log_events += 1
         return super().process_browser_logs_for_network_events(logs)
     
     def page_loaded(self, driver):
-        self.page_loaded_counter += 1
+        self.counter_page_loaded += 1
         return super().page_loaded(driver)
 
     def test_url(self, url, urls_to_visit, pages_visited):
-        self.test_counter += 1
+        self.counter_test += 1
         return super().test_url(url, urls_to_visit, pages_visited)
     
-    def start_driver(self):
-        self.start_driver_counter += 1
-        return super().start_driver()
+    def count_driver_load(self):
+        self.counter_driver_load += 1
+    def count_check_standard(self):
+        self.counter_check_standard += 1
+    def count_page_created(self):
+        self.counter_page_created += 1
+    def count_page_already_visited(self):
+        self.counter_page_already_visited += 1
+    def count_pages_visited_add(self):
+        self.counter_added_to_page_visited += 1
+    def count_error_found(self):
+        self.counter_error_found += 1
+    def count_checked_errors(self):
+        self.counter_cheked_errors += 1
+    def count_page_fully_loaded(self):
+        self.counter_page_fully_loaded += 1
+    def count_crawled_page(self):
+        self.counter_crawled_page += 1
+    def count_set_title(self):
+        self.counter_set_title += 1
+    def count_set_cookies(self):
+        self.counter_set_cookies += 1
+    def count_set_tracking_ids(self):
+        self.counter_set_tracking_id += 1
+    def finished_scrape(self):
+        self.counter_finished_scrape += 1
+
+    # def start_driver(self):
+    #     self.counter_start_driver += 1
+    #     return super().start_driver(self)
+        
+    def __del__(self):
+        print('report')
 
 class Scraper():
     def __init__(self, config):
@@ -515,7 +600,7 @@ class Scraper():
         self.program_end = None
         self.date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
         self.count = 0
-
+        self.testers = []
 
     def get_pages(self):
         '''Add first pages to the queue based on the configurations of the program.
@@ -569,7 +654,6 @@ class Scraper():
             for page in navigation:
                 self.urls_to_visit.add('https://www.byui.edu/catalog/#' + page['to'])
 
-
     def scrape_page(self, sublist):
         '''Function to scrape a single page.'''
 
@@ -579,8 +663,8 @@ class Scraper():
         if len(sublist) == 0:
             return 
         
-        tester = Tester(self.config, self.date)
-
+        tester = SpyTester(self.config, self.date)
+        self.testers.append(tester)
         for url in sublist:
 
             self.urls_to_visit.remove(url)
@@ -599,8 +683,6 @@ class Scraper():
         
         tester.driver.quit()
 
-
-
     def get_sublists(self, batch_urls):
         '''Create a list of lists with urls based on the size of threads.'''
 
@@ -610,7 +692,6 @@ class Scraper():
         # Create a new list of lists.
         return [batch_urls[i * sublist_size:(i + 1) * sublist_size] for i in range(self.thread_size)]
         
-
     def main(self):
         ''' Run the entire program with multithreadng.'''
         # Don't let the computer sleep while the script runs. 
@@ -660,10 +741,8 @@ class Scraper():
 
 
         # Store data collected
-        self.finish()
-
-        
-            
+        #self.finish()
+       
     def finish(self):
         '''Save the crawl data into a csv file or json file.'''
         
@@ -673,24 +752,24 @@ class Scraper():
         
         templatejson ={self.date: data}
 
-        if not os.path.exists('results'):
-            os.makedirs('results')
+        # if not os.path.exists('results'):
+        #     os.makedirs('results')
 
-        # For an easier interpreteation of data every new scan will be
-        # called the "recent_site_scan".
-        original_filename = "results/recent_site_scan.json"
+        # # For an easier interpreteation of data every new scan will be
+        # # called the "recent_site_scan".
+        original_filename = "recent_site_scan.json"
         
-        try:
-            # Get the date of the most recent scan file and update it's name to 
-            # "byuipages {date}" to keep a file naming standard.
-            with open(original_filename, 'r') as f:
-                prev_json = json.load(f)
-                old_time_stamp = list(prev_json.keys())[0]
-                new_filename = f'results/byuipages {old_time_stamp}.json'
+        # try:
+        #     # Get the date of the most recent scan file and update it's name to 
+        #     # "byuipages {date}" to keep a file naming standard.
+        #     with open(original_filename, 'r') as f:
+        #         prev_json = json.load(f)
+        #         old_time_stamp = list(prev_json.keys())[0]
+        #         new_filename = f'results/byuipages {old_time_stamp}.json'
             
-            os.rename(original_filename, new_filename)
-        except FileNotFoundError:
-            pass
+        #     os.rename(original_filename, new_filename)
+        # except FileNotFoundError:
+        #     pass
 
         # Save as a JSON file.
         with open(original_filename, 'x') as f:
@@ -702,13 +781,14 @@ class Scraper():
         max_time = max(self.time_per_scrape)
         total_time = round((self.program_end - self.program_start).total_seconds(), 2)
         with open('scraper_stats.txt', 'a') as stats:
-            stats.write(f'\nDate: {self.date}, MULTITHREADING ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(self.pages_visited)}, Pages Requessted {self.max_pages}')
+            stats.write(f'\nDate: {self.date}, MULTITHREADING WITH CLASSES ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(self.pages_visited)}, Pages Requessted {self.max_pages}')
 
         print('total pages visited: ', len(self.pages_visited))
         print('total pages in urls_to_visit: ', len(self.urls_to_visit))
         unset_keepawake()
         print('\n Next step is os._exit ')
-        os._exit(0)
+        sys.exit(0)
+        #os._exit(0)
 
     def sighandle(self, sig, frame):
         '''Run the finish function if the program is closed early for some reason'''

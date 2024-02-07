@@ -1,4 +1,3 @@
-abish.byui.edu
 adam.byui.edu
 archives.byui.edu
 brightspotcdn.byui.edu
