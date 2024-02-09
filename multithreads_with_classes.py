@@ -97,9 +97,10 @@ class Tester():
             self.driver.delete_all_cookies()
             self.driver.get(page_url_with_identifier)
         except (MaxRetryError, ConnectionResetError) as e:
+            self.count_error_found()
             return
         except (Exception) as e:
-
+            self.count_error_found()
             # This should ideally never happen.
             print("super broken", e)
             return
@@ -108,11 +109,12 @@ class Tester():
         
         # Check if current_url has scope domain and is not
         # in the blacklist.
+        self.count_check_standard()
         if not checker.check_standard(current_url):
-            self.count_check_standard()
+            self.count_not_standard()
             return
                     
-        self.count_check_standard()
+        
 
         # Fromat current url to standard.
         current_url = checker.normalize_url(current_url)
@@ -334,6 +336,8 @@ class Tester():
         print('Override this method')
     def count_check_standard(self):
         print('Override this method')
+    def count_not_standard(self):
+        print('Override this method')
     def count_page_created(self):
         print('Override this method')
     def count_page_already_visited(self):
@@ -513,26 +517,28 @@ class Page:
 class SpyTester(Tester):
     def __init__(self, config, date):
         super().__init__(config, date)
-        self.counter_test = 0
         self.counter_start_driver = 0
+        self.counter_start_driver += 1
+        self.counter_test = 0
         self.counter_identifier = 0
-        self.counter_get_page_visited = 0
-        self.counter_log_events = 0
-        self.counter_page_loaded = 0
-        self.counter_closed_driver = 0
         self.counter_driver_load = 0
         self.counter_check_standard = 0
+        self.counter_not_standard = 0
         self.counter_page_created = 0
+        self.counter_get_page_visited = 0
         self.counter_page_already_visited = 0
         self.counter_added_to_page_visited = 0
         self.counter_error_found = 0
+        self.counter_log_events = 0
         self.counter_cheked_errors = 0
+        self.counter_page_loaded = 0
         self.counter_page_fully_loaded = 0
         self.counter_crawled_page = 0
         self.counter_set_title = 0
         self.counter_set_cookies = 0
         self.counter_set_tracking_id = 0
         self.counter_finished_scrape = 0
+        self.counter_closed_driver = 0
         self.current_thread = threading.current_thread().getName()
 
     def add_identifier_to_url(self, url):
@@ -558,6 +564,8 @@ class SpyTester(Tester):
         self.counter_driver_load += 1
     def count_check_standard(self):
         self.counter_check_standard += 1
+    def count_not_standard(self):
+        self.counter_not_standard += 1
     def count_page_created(self):
         self.counter_page_created += 1
     def count_page_already_visited(self):
@@ -584,9 +592,41 @@ class SpyTester(Tester):
     # def start_driver(self):
     #     self.counter_start_driver += 1
     #     return super().start_driver(self)
+    
+
+    def to_dict(self):
+        '''Format Page information into a dictionary for easy storing.'''
+
+        results = {}
+        counter = {
+            'start_driver' : self.counter_start_driver,
+            'tests': self.counter_test,
+            'identifiers': self.counter_identifier,
+            'driver_load' : self.counter_driver_load,
+            'check_standard' : self.counter_check_standard,
+            'not_standard': self.counter_not_standard,
+            'page_created' : self.counter_page_created,
+            'get_page_visited' : self.counter_get_page_visited,
+            'page_already_visited' : self.counter_page_already_visited,
+            'added_to_page_visited' : self.counter_added_to_page_visited,
+            'error_found' : self.counter_error_found,
+            'log_events' : self.counter_log_events,
+            'cheked_errors' : self.counter_cheked_errors,
+            'page_loaded' : self.counter_page_loaded,            
+            'page_fully_loaded' : self.counter_page_fully_loaded,
+            'crawled_page' : self.counter_crawled_page,
+            'set_title' : self.counter_set_title,
+            'set_cookies' : self.counter_set_cookies,
+            'set_tracking_id' : self.counter_set_tracking_id,
+            'finished_scrape' : self.counter_finished_scrape,
+            'closed_driver' : self.counter_closed_driver,
+        }
+        results[self.current_thread] = counter
+        return results
         
     def __del__(self):
-        print('report')
+        self.counter_closed_driver += 1
+        print("Spy destroyed")
 
 class Scraper():
     def __init__(self, config):
@@ -682,6 +722,7 @@ class Scraper():
                 print(traceback.print_exc())
         
         tester.driver.quit()
+        tester.__del__()
 
     def get_sublists(self, batch_urls):
         '''Create a list of lists with urls based on the size of threads.'''
@@ -741,23 +782,23 @@ class Scraper():
 
 
         # Store data collected
-        #self.finish()
+        self.finish()
        
     def finish(self):
         '''Save the crawl data into a csv file or json file.'''
         
         self.program_end = datetime.now()
 
-        data = [page.as_dict(self.config) for page in self.pages_visited]
+        # data = [page.as_dict(self.config) for page in self.pages_visited]
         
-        templatejson ={self.date: data}
+        # templatejson ={self.date: data}
 
         # if not os.path.exists('results'):
         #     os.makedirs('results')
 
         # # For an easier interpreteation of data every new scan will be
         # # called the "recent_site_scan".
-        original_filename = "recent_site_scan.json"
+        # original_filename = "results/recent_site_scan.json"
         
         # try:
         #     # Get the date of the most recent scan file and update it's name to 
@@ -771,9 +812,9 @@ class Scraper():
         # except FileNotFoundError:
         #     pass
 
-        # Save as a JSON file.
-        with open(original_filename, 'x') as f:
-            json.dump(templatejson, f)
+        # # Save as a JSON file.
+        # with open(original_filename, 'x') as f:
+        #     json.dump(templatejson, f)
 
         print('\t GETTING STATS \n')
 
@@ -782,6 +823,13 @@ class Scraper():
         total_time = round((self.program_end - self.program_start).total_seconds(), 2)
         with open('scraper_stats.txt', 'a') as stats:
             stats.write(f'\nDate: {self.date}, MULTITHREADING WITH CLASSES ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(self.pages_visited)}, Pages Requessted {self.max_pages}')
+
+        spy_data = [spy.to_dict() for spy in self.testers]
+        
+        template ={self.date: spy_data}
+
+        with open('spy_stats.json', 'w') as f:
+            json.dump(template, f)
 
         print('total pages visited: ', len(self.pages_visited))
         print('total pages in urls_to_visit: ', len(self.urls_to_visit))

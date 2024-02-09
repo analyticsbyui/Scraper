@@ -8,3 +8,4 @@ blacklist*
 recent_site_scan*
 deleteme*
 scraper_stats*
+results/*
