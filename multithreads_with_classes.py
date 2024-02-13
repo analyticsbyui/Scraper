@@ -24,14 +24,16 @@ import threading
 
 scan_id=datetime.now().strftime('%d%m%Y')
 pindex=1
+error_index = 0
 blacklist=None
 
 
 class Tester():
-    def __init__(self, config, date):
+    def __init__(self, config, date, errror_file):
         self.config = config
         self.driver = self.start_driver()
         self.date = date
+        self.error_file = errror_file
 
     def add_identifier_to_url(self, url):
         ''' Adds an identifier to the url for potential tracking purposes.
@@ -87,6 +89,7 @@ class Tester():
         '''Main logic for crawling a webpage.'''
 
         print(url)
+        global error_index
 
         # Add identifier for potential analytic purposes.
         page_url_with_identifier = self.add_identifier_to_url(url)
@@ -103,7 +106,13 @@ class Tester():
             self.count_error_found()
             # This should ideally never happen.
             print("super broken", e)
+            traceback.print_exc()
+            
+            error_index += 1
+            self.error_file.write(f"Index {error_index}: {traceback.format_exc()}\n")
+            self.error_file.flush()
             return
+        
         self.count_driver_load()
         current_url = self.driver.current_url
         
@@ -156,7 +165,6 @@ class Tester():
         pages_visited.append(page)
         self.count_pages_visited_add()
 
-        print(f'\n\t{os.getpid()}\n')
         print(f'\n \tCurrent page visited count {len(pages_visited)}')
 
         # Search for chrome error in Single Page Applications.
@@ -189,7 +197,7 @@ class Tester():
         # Check page status for error status codes.
         try:
             resp = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'})
-            print(resp)
+            
             if "404" == resp.status_code:
                 print(resp.status_code)
                 page.error_code = resp.status_code
@@ -200,7 +208,7 @@ class Tester():
             pass
 
         self.count_checked_errors()
-
+        # try:
         # Crawl the page for links.
         # Since page load is set to eager, we need to wait until everything else is 
         # loaded before checking network requests and cookies.
@@ -212,7 +220,6 @@ class Tester():
             const observer = new MutationObserver(callback);observer.observe(targetNode, config);
                                 ''')
         WebDriverWait(self.driver, timeout=30).until(self.page_loaded)
-        # #driver.save_screenshot(str(len(pages_visited))+'.png')
 
         self.count_page_fully_loaded()
         
@@ -259,7 +266,10 @@ class Tester():
                                 [".pdf", ".pptx", ".ppt", ".doc", ".docx", ".xlsx", 
                                 ".xls", ".xlsm", ".exe", ".zip", ".jpg", ".png", ".mp3", ".mp4"]):
                             
-                            urls_to_visit.add(normalized_url.lower())
+                            if "catalog" in normalized_url:
+                                urls_to_visit.add(normalized_url)
+                            else:
+                                urls_to_visit.add(normalized_url.lower())
                         elif self.config['files']:
                             '''
                                 CHECK WITH JOSUE TO SEE WHAT IS EXPECTED WHEN  "FILES" IS SELECTED
@@ -480,6 +490,7 @@ class Page:
             "date_crawled": self.date_crawled.strftime("%m/%d/%Y, %H:%M:%S"),
             "cookies": self.cookies,
             "links": self.has_links,
+            "external_links": self.has_external_links,
             "terms": self.terms,
             "title": self.title,
             "is_file": self.is_file
@@ -515,8 +526,9 @@ class Page:
         return str(self.self.as_dict())
 
 class SpyTester(Tester):
-    def __init__(self, config, date):
-        super().__init__(config, date)
+    def __init__(self, config, date, error_file):
+        super().__init__(config, date, error_file)
+        self.time_created = datetime.today().strftime("%m-%d-%y %H-%M-%S")
         self.counter_start_driver = 0
         self.counter_start_driver += 1
         self.counter_test = 0
@@ -599,6 +611,8 @@ class SpyTester(Tester):
 
         results = {}
         counter = {
+            'name' : self.current_thread,
+            'created': self.time_created,
             'start_driver' : self.counter_start_driver,
             'tests': self.counter_test,
             'identifiers': self.counter_identifier,
@@ -610,23 +624,28 @@ class SpyTester(Tester):
             'page_already_visited' : self.counter_page_already_visited,
             'added_to_page_visited' : self.counter_added_to_page_visited,
             'error_found' : self.counter_error_found,
-            'log_events' : self.counter_log_events,
             'cheked_errors' : self.counter_cheked_errors,
             'page_loaded' : self.counter_page_loaded,            
             'page_fully_loaded' : self.counter_page_fully_loaded,
             'crawled_page' : self.counter_crawled_page,
             'set_title' : self.counter_set_title,
             'set_cookies' : self.counter_set_cookies,
+            'log_events' : self.counter_log_events,
             'set_tracking_id' : self.counter_set_tracking_id,
             'finished_scrape' : self.counter_finished_scrape,
             'closed_driver' : self.counter_closed_driver,
+            'time_closed': datetime.today().strftime("%m-%d-%y %H-%M-%S")
         }
-        results[self.current_thread] = counter
-        return results
+        # results[self.current_thread] = counter
+        return counter
         
-    def __del__(self):
+    def close_spy(self):
         self.counter_closed_driver += 1
-        print("Spy destroyed")
+        print("Spy stats reported")
+        return self.to_dict()
+    
+    def __del__(self):
+        print(f"Spy in {self.current_thread} destroyed")
 
 class Scraper():
     def __init__(self, config):
@@ -641,6 +660,9 @@ class Scraper():
         self.date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
         self.count = 0
         self.testers = []
+        self.error_file = open("errors.txt", "a")
+        self.spy_file = open('spy_mission_report.txt', 'a')
+        
 
     def get_pages(self):
         '''Add first pages to the queue based on the configurations of the program.
@@ -703,7 +725,7 @@ class Scraper():
         if len(sublist) == 0:
             return 
         
-        tester = SpyTester(self.config, self.date)
+        tester = SpyTester(self.config, self.date, self.error_file)
         self.testers.append(tester)
         for url in sublist:
 
@@ -719,10 +741,16 @@ class Scraper():
                 self.time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
             except (Exception) as e:
                 print('Error: ',e)
+                tester.count_error_found()
                 print(traceback.print_exc())
+                global error_index
+                error_index += 1
+                self.error_file.write(f"Index {error_index}: {traceback.format_exc()}\n")
+                self.error_file.flush()
         
         tester.driver.quit()
-        tester.__del__()
+        self.spy_file.write(f"{tester.close_spy()}\n")
+        self.spy_file.flush()
 
     def get_sublists(self, batch_urls):
         '''Create a list of lists with urls based on the size of threads.'''
@@ -789,32 +817,32 @@ class Scraper():
         
         self.program_end = datetime.now()
 
-        # data = [page.as_dict(self.config) for page in self.pages_visited]
+        data = [page.as_dict(self.config) for page in self.pages_visited]
         
-        # templatejson ={self.date: data}
+        templatejson ={self.date: data}
 
-        # if not os.path.exists('results'):
-        #     os.makedirs('results')
+        if not os.path.exists('results'):
+            os.makedirs('results')
 
-        # # For an easier interpreteation of data every new scan will be
-        # # called the "recent_site_scan".
-        # original_filename = "results/recent_site_scan.json"
+        # For an easier interpreteation of data every new scan will be
+        # called the "recent_site_scan".
+        original_filename = "results/recent_site_scan.json"
         
-        # try:
-        #     # Get the date of the most recent scan file and update it's name to 
-        #     # "byuipages {date}" to keep a file naming standard.
-        #     with open(original_filename, 'r') as f:
-        #         prev_json = json.load(f)
-        #         old_time_stamp = list(prev_json.keys())[0]
-        #         new_filename = f'results/byuipages {old_time_stamp}.json'
+        try:
+            # Get the date of the most recent scan file and update it's name to 
+            # "byuipages {date}" to keep a file naming standard.
+            with open(original_filename, 'r') as f:
+                prev_json = json.load(f)
+                old_time_stamp = list(prev_json.keys())[0]
+                new_filename = f'results/byuipages {old_time_stamp}.json'
             
-        #     os.rename(original_filename, new_filename)
-        # except FileNotFoundError:
-        #     pass
+            os.rename(original_filename, new_filename)
+        except FileNotFoundError:
+            pass
 
-        # # Save as a JSON file.
-        # with open(original_filename, 'x') as f:
-        #     json.dump(templatejson, f)
+        # Save as a JSON file.
+        with open(original_filename, 'x') as f:
+            json.dump(templatejson, f)
 
         print('\t GETTING STATS \n')
 
@@ -828,15 +856,17 @@ class Scraper():
         
         template ={self.date: spy_data}
 
-        with open('spy_stats.json', 'w') as f:
+        with open('spy_stats_new.json', 'w') as f:
             json.dump(template, f)
 
         print('total pages visited: ', len(self.pages_visited))
         print('total pages in urls_to_visit: ', len(self.urls_to_visit))
         unset_keepawake()
+        self.error_file.close()
+        self.spy_file.close()
         print('\n Next step is os._exit ')
-        sys.exit(0)
-        #os._exit(0)
+        #sys.exit(0)
+        os._exit(0)
 
     def sighandle(self, sig, frame):
         '''Run the finish function if the program is closed early for some reason'''
