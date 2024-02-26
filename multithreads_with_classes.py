@@ -21,6 +21,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 import checker
 import threading
+import zipfile, io
 
 scan_id=datetime.now().strftime('%d%m%Y')
 pindex=1
@@ -29,11 +30,10 @@ blacklist=None
 
 
 class Tester():
-    def __init__(self, config, date, errror_file):
+    def __init__(self, config, date):
         self.config = config
         self.driver = self.start_driver()
         self.date = date
-        self.error_file = errror_file
 
     def add_identifier_to_url(self, url):
         ''' Adds an identifier to the url for potential tracking purposes.
@@ -89,7 +89,6 @@ class Tester():
         '''Main logic for crawling a webpage.'''
 
         print(url)
-        global error_index
 
         # Add identifier for potential analytic purposes.
         page_url_with_identifier = self.add_identifier_to_url(url)
@@ -108,9 +107,6 @@ class Tester():
             print("super broken", e)
             traceback.print_exc()
             
-            error_index += 1
-            self.error_file.write(f"Index {error_index}: {traceback.format_exc()}\n")
-            self.error_file.flush()
             return
         
         self.count_driver_load()
@@ -133,6 +129,8 @@ class Tester():
 
         # Create a Page object
         page = Page(current_url)
+        
+        print(f'\n \tCurrent page visited count {len(pages_visited)}')
 
         self.count_page_created()
 
@@ -165,9 +163,8 @@ class Tester():
         pages_visited.append(page)
         self.count_pages_visited_add()
 
-        print(f'\n \tCurrent page visited count {len(pages_visited)}')
 
-        # Search for chrome error in Single Page Applications.
+        # Search for chrome errors in Single Page Applications.
         try:
             elem = self.driver.find_element(By.ID, "error-information-popup-content")
             print(elem.find_element(By.CLASS_NAME, "error-code").text)
@@ -184,15 +181,11 @@ class Tester():
         if "<body></body>" in self.driver.page_source:
             print("body empty")
             page.error_code = "404"
-            #return
 
         # Check page title for 404.
         if "404" in self.driver.title:
             print("404")
             page.error_code = "404"
-
-            ## Page not found, no need to continue.
-            #return
         
         # Check page status for error status codes.
         try:
@@ -202,8 +195,6 @@ class Tester():
                 print(resp.status_code)
                 page.error_code = resp.status_code
 
-                ## Page not found, no need to continue.
-                #return
         except (Exception) as e:
             pass
 
@@ -255,9 +246,7 @@ class Tester():
 
                     # Confirm url is not in queue to visit or already visited
                     # and perform standard validation check.
-                    #duplicate = sum(map(lambda url: checker.check_duplicate(normalized_url, url), urls_to_visit))
                     if (normalized_url.lower() not in urls_to_visit
-                        #and duplicate == 0 
                         and self.get_page_visited(link_url, pages_visited)== None 
                         and checker.check_standard(link_url)):
                         
@@ -340,7 +329,7 @@ class Tester():
                     return Math.round((pageLoadTime / 1000) * 100) / 100;
                     }''')
             
-        self.finished_scrape()
+        self.count_finished_scrape()
 
     def count_driver_load(self):
         print('Override this method')
@@ -368,7 +357,7 @@ class Tester():
         print('Override this method')
     def count_set_tracking_ids(self):
         print('Override this method')
-    def finished_scrape(self):
+    def count_finished_scrape(self):
         print('Override this method')
 
     def start_driver(self):
@@ -378,6 +367,10 @@ class Tester():
         # This block sets up selenium settings.
         ############################################################################
         chrome_options = Options()
+
+        # Make sure we use the version of chrome that is compatible with our code
+        current_location = os.path.dirname(os.path.realpath(__file__))
+        chrome_options.binary_location = f'{current_location}/chrome-win64/chrome.exe'
 
         # These settings are an effort to disable file downloads.
         prefs = {
@@ -397,11 +390,12 @@ class Tester():
 
         # Turn off gpu and extensions, these can cause weird problems.
         chrome_options.add_argument("--disable-extensions")
+        chrome_options.add_argument("--enable-chrome-browser-cloud-management")
         chrome_options.add_argument("--disable-gpu")
+        chrome_options.add_argument("--enable-javascript")
 
         # Run headless so that the chrome window stays hidden.
-        chrome_options.add_argument("--enable-javascript")
-        # chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--headless")
         # if(not self.config['catalog']):
         #     chrome_options.add_argument("--headless")
 
@@ -410,7 +404,7 @@ class Tester():
         # page for links before continuing on to log analytics calls.
         chrome_options.page_load_strategy = "eager"
 
-        service = Service(executable_path=ChromeDriverManager().install())
+        service = Service(executable_path=ChromeDriverManager(driver_version="120.0.6099.109").install())
 
         # Set up the webdriver. 
         # chromedrivermanager automatically installs and manages it for us.
@@ -480,9 +474,20 @@ class Page:
         r_dict['scan_id']=scan_id+str(pindex)
         pindex+=1
 
+        # Split the url to have domain, page, and subpage
+        if 'https://' in self.normalized_url:
+            url = self.normalized_url.replace('https://', '')
+        elif 'http://' in self.normalized_url:
+            url = url.replace('http://', '')
+
+        divided = url.split('/', 2)
+
         # Create "column dictionary" using Page attributes
         c_dict={
             "url": self.normalized_url,
+            "domain": divided[0],
+            "page": divided[1],
+            "subpage": divided[2],
             "aliases": self.aliases,
             "error_code": self.error_code,
             "tracking_ids": self.tracking_ids,
@@ -526,8 +531,8 @@ class Page:
         return str(self.self.as_dict())
 
 class SpyTester(Tester):
-    def __init__(self, config, date, error_file):
-        super().__init__(config, date, error_file)
+    def __init__(self, config, date):
+        super().__init__(config, date)
         self.time_created = datetime.today().strftime("%m-%d-%y %H-%M-%S")
         self.counter_start_driver = 0
         self.counter_start_driver += 1
@@ -598,7 +603,7 @@ class SpyTester(Tester):
         self.counter_set_cookies += 1
     def count_set_tracking_ids(self):
         self.counter_set_tracking_id += 1
-    def finished_scrape(self):
+    def count_finished_scrape(self):
         self.counter_finished_scrape += 1
 
     # def start_driver(self):
@@ -606,11 +611,10 @@ class SpyTester(Tester):
     #     return super().start_driver(self)
     
 
-    def to_dict(self):
+    def to_dict(self, report = 'final'):
         '''Format Page information into a dictionary for easy storing.'''
 
-        results = {}
-        counter = {
+        results = {
             'name' : self.current_thread,
             'created': self.time_created,
             'start_driver' : self.counter_start_driver,
@@ -625,7 +629,7 @@ class SpyTester(Tester):
             'added_to_page_visited' : self.counter_added_to_page_visited,
             'error_found' : self.counter_error_found,
             'cheked_errors' : self.counter_cheked_errors,
-            'page_loaded' : self.counter_page_loaded,            
+            'page_loaded' : self.counter_page_loaded,
             'page_fully_loaded' : self.counter_page_fully_loaded,
             'crawled_page' : self.counter_crawled_page,
             'set_title' : self.counter_set_title,
@@ -636,12 +640,11 @@ class SpyTester(Tester):
             'closed_driver' : self.counter_closed_driver,
             'time_closed': datetime.today().strftime("%m-%d-%y %H-%M-%S")
         }
-        # results[self.current_thread] = counter
-        return counter
+        return results
         
     def close_spy(self):
         self.counter_closed_driver += 1
-        print("Spy stats reported")
+        print(f"Spy report created")
         return self.to_dict()
     
     def __del__(self):
@@ -660,8 +663,7 @@ class Scraper():
         self.date = datetime.today().strftime("%m-%d-%y %H-%M-%S")
         self.count = 0
         self.testers = []
-        self.error_file = open("errors.txt", "a")
-        self.spy_file = open('spy_mission_report.txt', 'a')
+        
         
 
     def get_pages(self):
@@ -725,8 +727,9 @@ class Scraper():
         if len(sublist) == 0:
             return 
         
-        tester = SpyTester(self.config, self.date, self.error_file)
-        self.testers.append(tester)
+        # tester = SpyTester(self.config, self.date)
+        tester = Tester(self.config, self.date)
+        # self.testers.append(tester)
         for url in sublist:
 
             self.urls_to_visit.remove(url)
@@ -743,14 +746,13 @@ class Scraper():
                 print('Error: ',e)
                 tester.count_error_found()
                 print(traceback.print_exc())
-                global error_index
-                error_index += 1
-                self.error_file.write(f"Index {error_index}: {traceback.format_exc()}\n")
-                self.error_file.flush()
+                
+                
         
         tester.driver.quit()
-        self.spy_file.write(f"{tester.close_spy()}\n")
-        self.spy_file.flush()
+        with open('spy_mission_report.txt', 'a')  as spy_file:
+            spy_file.write(f"{tester.close_spy()}\n")
+            spy_file.flush()
 
     def get_sublists(self, batch_urls):
         '''Create a list of lists with urls based on the size of threads.'''
@@ -852,18 +854,18 @@ class Scraper():
         with open('scraper_stats.txt', 'a') as stats:
             stats.write(f'\nDate: {self.date}, MULTITHREADING WITH CLASSES ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(self.pages_visited)}, Pages Requessted {self.max_pages}')
 
-        spy_data = [spy.to_dict() for spy in self.testers]
+        if self.testers:
+            spy_data = [spy.to_dict() for spy in self.testers]
+            
+            template ={self.date: spy_data}
+
+            with open('spy_stats_new.json', 'w') as f:
+                json.dump(template, f)
+
         
-        template ={self.date: spy_data}
-
-        with open('spy_stats_new.json', 'w') as f:
-            json.dump(template, f)
-
         print('total pages visited: ', len(self.pages_visited))
         print('total pages in urls_to_visit: ', len(self.urls_to_visit))
         unset_keepawake()
-        self.error_file.close()
-        self.spy_file.close()
         print('\n Next step is os._exit ')
         #sys.exit(0)
         os._exit(0)
@@ -882,6 +884,18 @@ if __name__ == "__main__":
     with open('config.json') as f:
         config = json.loads(f.read())
     
+
+    # Check if the portable version of crhorme is installed 
+        current_location = os.path.dirname(os.path.realpath(__file__))
+        if (os.path.exists(f'{current_location}/chrome-win64')) == False:
+            print('Downloading portable Chrome')
+            r = requests.get('https://storage.googleapis.com/chrome-for-testing-public/120.0.6099.109/win64/chrome-win64.zip', stream=True)
+            z = zipfile.ZipFile(io.BytesIO(r.content))
+            z.extractall()
+            print('Chrome already installed')
+        else:
+            print('Chrome already installed')
+
     scraper=Scraper(config)
     
     # Sets up the sighandle function so that it will capture exit signals.

@@ -163,23 +163,40 @@ def normalize_url( url):
         return "https://" + url.lower()
 
 #tag = r"(\?|\&)analyticsIntegrationVerificationBot"
-tag = r"analyticsIntegrationVerificationBot"
+tag1 = "analyticsIntegrationVerificationBot&"
+tag2 = "&analyticsIntegrationVerificationBot"
+tag3 = "?analyticsIntegrationVerificationBot"
+tag4 = "analyticsIntegrationVerificationBot"
 
 def check_identifier(url):
     '''Look for identifier and replace.'''
     
     # Replace our identifier if it exists in the link.
-    if re.search((tag+'&'), url) != None:
-        url = re.sub((tag+'&'), "?", url)
-    elif re.search(tag, url) != None:
-        url = re.sub(tag, "", url)
-        
-    return url
-
-def check_duplicate(url, current_url):
-    if re.search(url, current_url, re.I) != None:
+    new_url = ""
+    i = 0
+    tag1_length = len(tag1)
+    tag2_length = len(tag2)
+    tag3_length = len(tag3)
+    tag4_length = len(tag4)
     
-        return True
-    else:
-  
-        return False
+    # Iterate through the string
+    while i < len(url):
+        # Check if the current position matches the tag
+        if url[i:i + tag1_length] == tag1:
+            # Skip the tag by incrementing i
+            i += tag1_length
+        elif url[i:i + tag2_length] == tag2:
+            # Skip the tag by incrementing i
+            i += tag2_length
+        elif url[i:i + tag3_length] == tag3 and (i + tag3_length + 1 > len(url) or url[i + tag3_length] == '#'):
+            # Skip the tag by incrementing i
+            i += tag3_length
+        elif url[i:i + tag4_length] == tag4:
+            # Skip the tag by incrementing i
+            i += tag4_length
+        else:
+            # Copy the character to the new URL
+            new_url += url[i]
+            i += 1
+    
+    return new_url
