@@ -99,24 +99,24 @@ class Tester():
             self.driver.delete_all_cookies()
             self.driver.get(page_url_with_identifier)
         except (MaxRetryError, ConnectionResetError) as e:
-            self.count_error_found()
+           # self_count_error_found()
             return
         except (Exception) as e:
-            self.count_error_found()
+           # self_count_error_found()
             # This should ideally never happen.
             print("super broken", e)
             traceback.print_exc()
             
             return
         
-        self.count_driver_load()
+       # self_count_driver_load()
         current_url = self.driver.current_url
         
         # Check if current_url has scope domain and is not
         # in the blacklist.
-        self.count_check_standard()
+       # self_count_check_standard()
         if not checker.check_standard(current_url):
-            self.count_not_standard()
+           # self_count_not_standard()
             return
                     
         
@@ -132,7 +132,7 @@ class Tester():
         
         print(f'\n \tCurrent page visited count {len(pages_visited)}')
 
-        self.count_page_created()
+       # self_count_page_created()
 
         # Handle redirects.
         if current_url != url:
@@ -153,7 +153,7 @@ class Tester():
                 # Set page's url as alias for visited page.
                 page_visited.add_alias(url)
                 print("Page Already visited")
-                self.count_page_already_visited()
+               # self_count_page_already_visited()
                 return
             else:
 
@@ -161,7 +161,7 @@ class Tester():
                 page.add_alias(url)
 
         pages_visited.append(page)
-        self.count_pages_visited_add()
+       # self_count_pages_visited_add()
 
 
         # Search for chrome errors in Single Page Applications.
@@ -170,7 +170,7 @@ class Tester():
             print(elem.find_element(By.CLASS_NAME, "error-code").text)
             page.error_code = elem.find_element(By.CLASS_NAME, "error-code").text
 
-            self.count_error_found()
+           # self_count_error_found()
             # Error found. No need to continue.
             return
         except:
@@ -198,7 +198,7 @@ class Tester():
         except (Exception) as e:
             pass
 
-        self.count_checked_errors()
+       # self_count_checked_errors()
         # try:
         # Crawl the page for links.
         # Since page load is set to eager, we need to wait until everything else is 
@@ -212,7 +212,7 @@ class Tester():
                                 ''')
         WebDriverWait(self.driver, timeout=30).until(self.page_loaded)
 
-        self.count_page_fully_loaded()
+       # self_count_page_fully_loaded()
         
         if self.config['crawl']:
 
@@ -266,16 +266,16 @@ class Tester():
                             pages_visited.append(Page(normalized_url))
                 except StaleElementReferenceException:
                     pass
-        self.count_crawled_page()
+       # self_count_crawled_page()
         
         if self.config["columns"]["title"]:
             page.title = self.driver.title
-        self.count_set_title()
+       # self_count_set_title()
 
         # Set Page cookies from driver cookies.
         if self.config['columns']['cookies']:
             page.cookies = [cookie['name'] for cookie in self.driver.get_cookies()]
-        self.count_set_cookies()
+       # self_count_set_cookies()
 
         # Check if tracking_ids was selected
         if self.config['columns']['tracking_ids']:
@@ -305,7 +305,7 @@ class Tester():
 
                     if "googletagmanager.com/gtag/js" in url:
                         page.add_tracking_id(query_params['id'][0], "GTAG")
-        self.count_set_tracking_ids()
+       # self_count_set_tracking_ids()
 
         if self.config['columns']['terms'] and not self.config['use_terms']:
 
@@ -329,7 +329,7 @@ class Tester():
                     return Math.round((pageLoadTime / 1000) * 100) / 100;
                     }''')
             
-        self.count_finished_scrape()
+       # self_count_finished_scrape()
 
     def count_driver_load(self):
         print('Override this method')
@@ -395,7 +395,7 @@ class Tester():
         chrome_options.add_argument("--enable-javascript")
 
         # Run headless so that the chrome window stays hidden.
-        chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")
         # if(not self.config['catalog']):
         #     chrome_options.add_argument("--headless")
 
@@ -487,7 +487,7 @@ class Page:
             "url": self.normalized_url,
             "domain": divided[0],
             "page": divided[1],
-            "subpage": divided[2],
+            "subpage": divided[2] if len(divided) >= 3 else '',
             "aliases": self.aliases,
             "error_code": self.error_code,
             "tracking_ids": self.tracking_ids,
@@ -509,9 +509,16 @@ class Page:
                 # Confirm if current column was checked in config window.
                 if config['columns'][column]:
                     if column !='terms':
-
-                        # Creates a row and gives it the value of that column.
-                        r_dict.update([[column,c_dict[column]]])
+                        
+                        if column == 'url':
+                            # Creates a row and gives it the value of that column.
+                            r_dict.update([[column,c_dict[column]]])
+                            r_dict.update([['domain',c_dict['domain']]])
+                            r_dict.update([['page',c_dict['page']]])
+                            r_dict.update([['subpage',c_dict['subpage']]])
+                        else:
+                            # Creates a row and gives it the value of that column.
+                            r_dict.update([[column,c_dict[column]]])
                     else:
                         
                         # Confirm if terms file was provided in config window.
@@ -750,9 +757,9 @@ class Scraper():
                 
         
         tester.driver.quit()
-        with open('spy_mission_report.txt', 'a')  as spy_file:
-            spy_file.write(f"{tester.close_spy()}\n")
-            spy_file.flush()
+        # with open('spy_mission_report.txt', 'a')  as spy_file:
+        #     spy_file.write(f"{tester.close_spy()}\n")
+        #     spy_file.flush()
 
     def get_sublists(self, batch_urls):
         '''Create a list of lists with urls based on the size of threads.'''
@@ -821,7 +828,7 @@ class Scraper():
 
         data = [page.as_dict(self.config) for page in self.pages_visited]
         
-        templatejson ={self.date: data}
+        templatejson ={"date": self.date, "data": data}
 
         if not os.path.exists('results'):
             os.makedirs('results')
@@ -835,7 +842,8 @@ class Scraper():
             # "byuipages {date}" to keep a file naming standard.
             with open(original_filename, 'r') as f:
                 prev_json = json.load(f)
-                old_time_stamp = list(prev_json.keys())[0]
+                # old_time_stamp = prev_json['data'][0]['date_crawled']
+                old_time_stamp = prev_json['date']
                 new_filename = f'results/byuipages {old_time_stamp}.json'
             
             os.rename(original_filename, new_filename)
@@ -880,6 +888,7 @@ class Scraper():
 if __name__ == "__main__":
     '''Initial set up using confi.py and reading its output.'''
     #os.system('config.pyw')
+    import config_files_changer
     import config
     with open('config.json') as f:
         config = json.loads(f.read())

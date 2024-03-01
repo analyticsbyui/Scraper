@@ -16,6 +16,7 @@ digitalcampus.swankmp.net
 ems.byui.edu
 event.byui.edu
 feithweb.byui.edu
+fileOpen
 gsuitetest.byui.edu
 honors.fye.byu.edu
 hip.byui.edu
