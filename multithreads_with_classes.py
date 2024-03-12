@@ -53,9 +53,9 @@ class Tester():
 
         # Get the first page that matches the provided url or has the url as alias.
         # If not found return None.
-        return next((page for page in pages_visited 
-                        if page.get_url() == url or 
-                        url in page.get_aliases()), None)
+        return next((key for key in pages_visited.keys() 
+                        if key == url or 
+                        url in pages_visited[key].get_aliases()), None)
 
     def process_browser_logs_for_network_events(self, logs):
         '''Filters network requests from browser logs.
@@ -134,8 +134,21 @@ class Tester():
 
        # self_count_page_created()
 
+        # Check if page has already been visited.
+        page_visited = self.get_page_visited(current_url, pages_visited)
+
+        # Page has been visited, no need to continue scraping.
+        if page_visited != None:
+
+            # Set page's url as alias for visited page.
+            if pages_visited[page_visited].normalized_url != page_visited:
+                page_visited.add_alias(url)
+                print("Page Already visited")
+                # self_count_page_already_visited()
+                return
+            
         # Handle redirects.
-        if current_url != url:
+        elif current_url != url:
             
             # A mismatching url when page loads probably means we were redirected.
             print("url mismatch. redirected?")
@@ -144,23 +157,12 @@ class Tester():
             if current_url in urls_to_visit:
                 urls_to_visit.remove(current_url)
 
-            # Check if page has already been visited.
-            page_visited = self.get_page_visited(current_url, pages_visited)
+            # Add url as alias for the current Page object.
+            page.add_alias(url)
 
-            # Page has been visited, no need to continue scraping.
-            if page_visited != None:
 
-                # Set page's url as alias for visited page.
-                page_visited.add_alias(url)
-                print("Page Already visited")
-               # self_count_page_already_visited()
-                return
-            else:
-
-                # Add url as alias for the current Page object.
-                page.add_alias(url)
-
-        pages_visited.append(page)
+        # pages_visited.append(page)
+        pages_visited[page.normalized_url] = page
        # self_count_pages_visited_add()
 
 
@@ -263,7 +265,8 @@ class Tester():
                             '''
                                 CHECK WITH JOSUE TO SEE WHAT IS EXPECTED WHEN  "FILES" IS SELECTED
                             '''
-                            pages_visited.append(Page(normalized_url))
+                            # pages_visited.append(Page(normalized_url))
+                            pages_visited[normalized_url] = Page(normalized_url)
                 except StaleElementReferenceException:
                     pass
        # self_count_crawled_page()
@@ -478,12 +481,13 @@ class Page:
         if 'https://' in self.normalized_url:
             url = self.normalized_url.replace('https://', '')
         elif 'http://' in self.normalized_url:
-            url = url.replace('http://', '')
+            url = self.normalized_url.replace('http://', '')
 
         divided = url.split('/', 2)
 
         # Create "column dictionary" using Page attributes
         c_dict={
+            "title": self.title,
             "url": self.normalized_url,
             "domain": divided[0],
             "page": divided[1],
@@ -497,7 +501,6 @@ class Page:
             "links": self.has_links,
             "external_links": self.has_external_links,
             "terms": self.terms,
-            "title": self.title,
             "is_file": self.is_file
         }
         
@@ -660,7 +663,7 @@ class SpyTester(Tester):
 class Scraper():
     def __init__(self, config):
         self.urls_to_visit = set()
-        self.pages_visited = []
+        self.pages_visited = dict()
         self.config = config
         self.max_pages = config['max']
         self.thread_size = config['threads']
@@ -680,7 +683,8 @@ class Scraper():
         # Get URL's from the sitemap.
         if self.config['sitemap']:
             page = Page("https://www.byui.edu/sitemap")
-            self.pages_visited.append(page)
+            # self.pages_visited.append(page)
+            self.pages_visited[page.normalized_url] = page
 
             # Use a normal requests.get call here 
             # instead of accessing it through selenium.
@@ -739,7 +743,7 @@ class Scraper():
         # self.testers.append(tester)
         for url in sublist:
 
-            self.urls_to_visit.remove(url)
+            # self.urls_to_visit.remove(url)
 
             try:
                 page_scrape_start = datetime.now()
@@ -753,6 +757,9 @@ class Scraper():
                 print('Error: ',e)
                 tester.count_error_found()
                 print(traceback.print_exc())
+
+            # The URl will be removed from the list wether or not we succeeded    
+            self.urls_to_visit.remove(url)
                 
                 
         
@@ -826,7 +833,7 @@ class Scraper():
         
         self.program_end = datetime.now()
 
-        data = [page.as_dict(self.config) for page in self.pages_visited]
+        data = [page.as_dict(self.config) for page in self.pages_visited.values()]
         
         templatejson ={"date": self.date, "data": data}
 
@@ -854,13 +861,15 @@ class Scraper():
         with open(original_filename, 'x') as f:
             json.dump(templatejson, f)
 
+        import upload_file
+
         print('\t GETTING STATS \n')
 
         avg = round(sum(self.time_per_scrape)/len(self.time_per_scrape), 2)
         max_time = max(self.time_per_scrape)
         total_time = round((self.program_end - self.program_start).total_seconds(), 2)
         with open('scraper_stats.txt', 'a') as stats:
-            stats.write(f'\nDate: {self.date}, MULTITHREADING WITH CLASSES ATTEMPT, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(self.pages_visited)}, Pages Requessted {self.max_pages}')
+            stats.write(f'\nDate: {self.date}, Average Time Per Page: {avg}, Max Time: {max_time}, Total time: {total_time/60} mins, Amount of pages visited: {len(self.pages_visited)}, Pages Attempted {self.count}, Pages Requested {self.max_pages}, Num of Threads {self.thread_size}')
 
         if self.testers:
             spy_data = [spy.to_dict() for spy in self.testers]
