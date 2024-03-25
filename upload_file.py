@@ -124,7 +124,7 @@ def chunked_upload(main_url, file_path, site_url, folder_url, headers, cookies):
 
             # Finish upload
             chunk = file.read(chunk_size)
-            finish_upload(main_url, site_url, file_name, upload_id, chunk, offset,  headers, cookies)
+            finish_upload(main_url, site_url, file_name, folder_url, upload_id, chunk, offset,  headers, cookies)
         except Exception as e:
             print(f'\n\n\tThere was an issue\n {e} \n')
 
