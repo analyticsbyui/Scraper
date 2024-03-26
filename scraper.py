@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 import checker
 import threading
 import zipfile, io
-
+from multiprocessing import freeze_support
 scan_id=datetime.now().strftime('%d%m%Y')
 pindex=1
 
@@ -96,6 +96,7 @@ class Tester():
             return driver.execute_script("return document.readyState") == "complete" 
 
     def test_url(self, url, urls_to_visit, pages_visited):
+        #print('you have starated a test')
         '''Main logic for crawling a webpage.'''
 
         print(url)
@@ -576,39 +577,45 @@ class Scraper():
                 self.urls_to_visit.add('https://www.byui.edu/catalog/#' + page['to'])
 
     def scrape_page(self, sublist):
-        '''Function to scrape a single page.'''
+        try:
+            #print('You have entered scrape_page function')
+            '''Function to scrape a single page.'''
 
-        if self.count > self.max_pages:
-            return
-        
-        if len(sublist) == 0:
-            return 
-        
-        tester = Tester(self.config, self.date)
-        for url in sublist:
+            if self.count > self.max_pages:
+                #print('you are returning due to self.count > self.max_pages')
+                return
+            
+            if len(sublist) == 0:
+                #print('you are returning due to len(sublist) == 0')
+                return 
+            
+            tester = Tester(self.config, self.date)
+            for url in sublist:
 
 
-            try:
-                page_scrape_start = datetime.now()
-                self.count +=1
-                print(f'\n \tCurrent count: {self.count}')
-                tester.test_url(url, self.urls_to_visit, self.pages_visited)
-                page_scrape_end = datetime.now()
+                try:
+                    page_scrape_start = datetime.now()
+                    self.count +=1
+                    print(f'\n \tCurrent count: {self.count}')
+                    tester.test_url(url, self.urls_to_visit, self.pages_visited)
+                    page_scrape_end = datetime.now()
 
-                # Store scrape time per page
-                self.time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
-            except (Exception) as e:
-                print('Error: ',e)
-                print(traceback.print_exc())
+                    # Store scrape time per page
+                    self.time_per_scrape.append((page_scrape_end - page_scrape_start).total_seconds())
+                except (Exception) as e:
+                    print('Error: ',e)
+                    print(traceback.print_exc())
 
-            # The URl will be removed from the list wether or not we succeeded    
-            self.urls_to_visit.remove(url)
-        
-        # self.batch_testers.append(tester)
-        
-        self.pages_visited.update(tester.current_pages_visited)
+                # The URl will be removed from the list wether or not we succeeded    
+                self.urls_to_visit.remove(url)
+            
+            # self.batch_testers.append(tester)
+            
+            self.pages_visited.update(tester.current_pages_visited)
 
-        tester.driver.quit()
+            tester.driver.quit()
+        except Exception as e:
+            print(traceback.format_exc())
       
     def get_sublists(self, batch_urls):
         '''Create a list of lists with urls based on the size of threads.'''
@@ -620,6 +627,7 @@ class Scraper():
         return [batch_urls[i * sublist_size:(i + 1) * sublist_size] for i in range(self.thread_size)]
         
     def main(self):
+        #print('you have entered the main method in scraper')
         ''' Run the entire program with multithreadng.'''
         # Don't let the computer sleep while the script runs. 
         # If the computer sleeps, the crawl breaks
@@ -656,7 +664,7 @@ class Scraper():
 
 
             with ThreadPoolExecutor(self.thread_size) as executor:
-                executor.map(self.scrape_page, sublists)     
+                executor.map(self.scrape_page, sublists)
 
 
             print('\n\n\tScrape count: ', self.count)
@@ -729,6 +737,7 @@ class Scraper():
 if __name__ == "__main__":
     '''Initial set up using confi.py and reading its output.'''
     #os.system('config.pyw')
+    freeze_support()
     import config_files_changer
     import config
     with open('config.json') as f:
@@ -737,11 +746,11 @@ if __name__ == "__main__":
 
     # Check if the portable version of crhorme is installed 
         current_location = os.path.dirname(os.path.realpath(__file__))
-        if (os.path.exists(f'{current_location}/chrome-win64')) == False:
+        if (os.path.exists(f'{current_location}/_internal/chrome-win64')) == False:
             print('Downloading portable Chrome')
             r = requests.get('https://storage.googleapis.com/chrome-for-testing-public/120.0.6099.109/win64/chrome-win64.zip', stream=True)
             z = zipfile.ZipFile(io.BytesIO(r.content))
-            z.extractall()
+            z.extractall(f'{current_location}')
             print('Chrome already installed')
         else:
             print('Chrome already installed')
@@ -751,6 +760,7 @@ if __name__ == "__main__":
     # Sets up the sighandle function so that it will capture exit signals.
     signal.signal(signal.SIGINT, scraper.sighandle)
 
+    #print('you are about to enter the scraper Class')
     # Run the program.
     scraper.main()
 
